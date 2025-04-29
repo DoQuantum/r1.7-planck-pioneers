@@ -1,0 +1,10 @@
+torch>=2.2
+transformers>=4.40
+qiskit>=1.0
+pennylane>=0.36
+cirq>=1.3
+numpy>=1.26
+scipy>=1.12
+tqdm>=4.66
+jupyterlab>=4.1
+pytest>=8.2

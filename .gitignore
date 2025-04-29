@@ -1,0 +1,18 @@
+# Virtual env
+.venv/
+# Python cache & logs
+__pycache__/
+*.py[cod]
+*.log
+# Jupyter
+.ipynb_checkpoints/
+# Data & artifacts
+data/
+outputs/
+checkpoints/
+# Build
+build/
+dist/
+*.egg-info/
+# OS
+.DS_Store
