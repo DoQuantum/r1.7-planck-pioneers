@@ -1,19 +1,17 @@
 ## Local Development Setup
 
-1. Install Python ≥3.10.
-2. Create a virtual environment:
+1. Install Python ≥3.11.
+2. Install Conda
+3. Create a virtual environment:
    ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
+   conda create -n chosenName python==3.11  
+   conda activate chosenName
    ```
-3. Install project dependencies:
+4. Install project dependencies:
    ```bash
    pip install -r requirements.txt
    ```
-4. Run unit tests with `pytest`.
 
 ## Jupyter notebooks
-Inside the activated environment:
-```bash
-jupyter lab
-```
+1. Select 'Select Kernel' on the top left
+2. Select chosenName as your kernel (environment)
