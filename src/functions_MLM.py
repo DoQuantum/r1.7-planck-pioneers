@@ -9,11 +9,11 @@ from tqdm.notebook import tqdm
 import time
 import math
 from sklearn.model_selection import KFold
-
+from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAttention
 
 def tokenize_sentence_MLM(sentence: str, tokenizer) -> dict:
     """
-    See how a sentence is tokenized by a given tokenizer (for Masked Language Modeling).
+    See how a sentence is tokenized by a given tokenizer (for Masked Language Modeling). 
 
     Args:
         sentence (str): Sentence to tokenize.

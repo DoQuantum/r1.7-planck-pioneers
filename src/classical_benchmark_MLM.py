@@ -7,8 +7,10 @@ from functions_MLM import (
 )
 from datasets import load_dataset
 import torch
+import math
 import numpy as np
-from transformers import BertForMaskedLM  # Required for model class
+# from transformers import BertForMaskedLM  # Required for model class
+from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAttention
 
 ################
 ## Example Input / Hidden States for Inspection
@@ -41,7 +43,8 @@ folds = prepare_data_kfold_MLM(
 
 # Train using k-fold CV (creates fresh model for each fold)
 results = train_model_mlm_kfold_MLM(
-    model_class=BertForMaskedLM,  # Pass model class, not instance
+    # model_class=BertForMaskedLM,  # Pass model class, not instance
+    model_class=CustomBertForMaskedLM_LastLayerAttention,
     folds=folds,
     epochs=3,
     lr=2e-5,
