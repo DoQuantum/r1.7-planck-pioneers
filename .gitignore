@@ -1,5 +1,5 @@
 # Virtual env
-.venv/
+venv/
 # Python cache & logs
 __pycache__/
 *.py[cod]
