@@ -1,0 +1,38 @@
+[
+  {
+    "model": "./bert_mlm_finetuned_epoch3",
+    "loss": 1.8635351220321654,
+    "accuracy": 0.6344280014653412,
+    "perplexity": 6.446485651160393
+  },
+  {
+    "model": "./bert_mlm_finetuned_fold1_epoch3",
+    "loss": 1.8720643029403687,
+    "accuracy": 0.6327512431654073,
+    "perplexity": 6.501704042579261
+  },
+  {
+    "model": "./bert_mlm_finetuned_fold2_epoch3",
+    "loss": 1.8769102045059205,
+    "accuracy": 0.6327398588694936,
+    "perplexity": 6.533287122822141
+  },
+  {
+    "model": "./bert_mlm_finetuned_fold3_epoch3",
+    "loss": 1.8794498321914672,
+    "accuracy": 0.6319928212075377,
+    "perplexity": 6.549900326423599
+  },
+  {
+    "model": "./bert_mlm_finetuned_fold4_epoch3",
+    "loss": 1.8728926059722901,
+    "accuracy": 0.63322533488921,
+    "perplexity": 6.507091654730094
+  },
+  {
+    "model": "./bert_mlm_finetuned_fold5_epoch3",
+    "loss": 1.8781987665176392,
+    "accuracy": 0.6332668364074074,
+    "perplexity": 6.541711094659719
+  }
+]

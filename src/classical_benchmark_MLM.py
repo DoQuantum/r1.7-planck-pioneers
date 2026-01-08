@@ -9,12 +9,8 @@ from datasets import load_dataset
 import torch
 import math
 import numpy as np
-# from transformers import BertForMaskedLM  # Required for model class
+# from transformers import BertForMaskedLM 
 from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAttention
-
-################
-## Example Input / Hidden States for Inspection
-################
 
 # Load tokenizer and temporary model for demonstration
 _, tokenizer = get_BertMaskedLM_BertTokenizer_MLM()
@@ -23,9 +19,7 @@ _, tokenizer = get_BertMaskedLM_BertTokenizer_MLM()
 tokens = tokenize_sentence_MLM(sentence="The cat is a fatty patty.", tokenizer=tokenizer)
 print("Tokenized sentence:", tokens)
 
-################
 ## Data Preparation for k-fold
-################
 
 # Load dataset - ONLY using 'train' split for k-fold
 dataset = load_dataset("imdb")
@@ -37,9 +31,7 @@ folds = prepare_data_kfold_MLM(
     n_splits=5  # Number of folds
 )
 
-################
 ## MLM Fine-tuning with k-fold cross-validation
-################
 
 # Train using k-fold CV (creates fresh model for each fold)
 results = train_model_mlm_kfold_MLM(

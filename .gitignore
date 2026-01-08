@@ -16,3 +16,7 @@ dist/
 *.egg-info/
 # OS
 .DS_Store
+# BERT finetuning outputs / checkpoints
+bert_mlm_finetuned/
+bert_mlm_finetuned_epoch*/
+bert_mlm_finetuned_fold*/
