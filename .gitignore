@@ -20,3 +20,12 @@ dist/
 bert_mlm_finetuned/
 bert_mlm_finetuned_epoch*/
 bert_mlm_finetuned_fold*/
+
+# --- NEW EXCLUSIONS ---
+
+# Ignore the huge checkpoint folders (Quantum & Classical)
+CLASSICAL_fold*
+QUANTUM_fold*
+
+# Ignore large zip files (Do not upload these!)
+*.zip
