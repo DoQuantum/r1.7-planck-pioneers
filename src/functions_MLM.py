@@ -1,3 +1,4 @@
+# batch size edited from 4 to 16 for GPU
 import numpy as np
 from transformers import BertTokenizer, BertForMaskedLM, logging
 import torch
@@ -119,17 +120,9 @@ def prepare_data_MLM(data: any, tokenizer: any) -> tuple:
 
     return train_loader, test_loader
 
-def prepare_data_kfold_MLM(data: any, tokenizer: any, n_splits: int = 5) -> list:
+def prepare_data_kfold_MLM(data: any, tokenizer: any, n_splits: int = 5, batch_size: int = 16) -> list:
     """
-    Prepare dataset for k-fold cross-validation in Masked Language Modeling (MLM) fine-tuning.
-
-    Args:
-        data (DatasetDict): Dataset with 'train' split (we'll use this for k-fold).
-        tokenizer (PreTrainedTokenizer): Tokenizer for tokenization.
-        n_splits (int): Number of folds for cross-validation.
-
-    Returns:
-        list: List of tuples (train_loader, val_loader) for each fold.
+    Prepare dataset for k-fold cross-validation with VARIABLE BATCH SIZE.
     """
     # Use the train split for k-fold cross-validation
     dataset = data["train"].shuffle(seed=42)
@@ -151,20 +144,18 @@ def prepare_data_kfold_MLM(data: any, tokenizer: any, n_splits: int = 5) -> list
     
     # Create train/val splits for each fold
     for fold, (train_indices, val_indices) in enumerate(kfold.split(range(dataset_size))):
-        # Create subset datasets for train and validation
         train_subset = Subset(tokenized_dataset, train_indices)
         val_subset = Subset(tokenized_dataset, val_indices)
         
-        # Collator handles dynamic padding + random masking for MLM
         collator = DataCollatorForLanguageModeling(
             tokenizer=tokenizer,
             mlm=True,
-            mlm_probability=0.15  # 15% of tokens randomly masked
+            mlm_probability=0.15
         )
         
-        # Create dataloaders for this fold
-        train_loader = DataLoader(train_subset, batch_size=4, shuffle=True, collate_fn=collator)
-        val_loader = DataLoader(val_subset, batch_size=4, shuffle=False, collate_fn=collator)
+        # USE THE PASSED BATCH_SIZE HERE
+        train_loader = DataLoader(train_subset, batch_size=batch_size, shuffle=True, collate_fn=collator)
+        val_loader = DataLoader(val_subset, batch_size=batch_size, shuffle=False, collate_fn=collator)
         
         folds.append((train_loader, val_loader))
         print(f"Fold {fold+1}: Train samples: {len(train_indices)}, Val samples: {len(val_indices)}")
@@ -196,7 +187,7 @@ def compute_mlm_accuracy_MLM(logits, labels):
 
     return correct / total
 
-def train_model_mlm_kfold_MLM(model_class, folds, epochs=3, lr=2e-5, n_splits=5):
+def train_model_mlm_kfold_MLM(model_class, folds, epochs=3, lr=2e-5, n_splits=5, use_quantum_simulator=False):
     """
     Train model using k-fold cross-validation for Masked Language Modeling (MLM).
 
@@ -226,7 +217,8 @@ def train_model_mlm_kfold_MLM(model_class, folds, epochs=3, lr=2e-5, n_splits=5)
         # Create a fresh model for each fold to ensure independence
         model = model_class.from_pretrained(
             'bert-base-uncased',
-            output_attentions=True
+            output_attentions=True,
+            use_quantum_simulator=use_quantum_simulator
         )
         model.to(device)
         optimizer = AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
@@ -310,7 +302,7 @@ def train_model_mlm_kfold_MLM(model_class, folds, epochs=3, lr=2e-5, n_splits=5)
             })
             
             # Save model checkpoint for this fold and epoch
-            epoch_save_path = f"./bert_mlm_finetuned_fold{fold_idx+1}_epoch{epoch+1}"
+            epoch_save_path = f"./small_colab{fold_idx+1}_epoch{epoch+1}"
             model.save_pretrained(epoch_save_path)
             print(f"Model checkpoint for fold {fold_idx+1}, epoch {epoch+1} saved to {epoch_save_path}")
         
