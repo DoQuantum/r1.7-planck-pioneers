@@ -18,7 +18,7 @@ from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAtten
 # ==============================================================================
 N_FOLDS = 5
 EPOCHS = 3
-LEARNING_RATE = 2e-5
+LEARNING_RATE = 1e-5
 BATCH_SIZE = 8  # Adjust this depending on your GPU memory (try 16 if 8 is easy)
 
 # ==============================================================================
@@ -70,7 +70,8 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
     )
     model.to(device)
     
-    optimizer = AdamW(model.parameters(), lr=LEARNING_RATE)
+    # optimizer = AdamW(model.parameters(), lr=LEARNING_RATE)
+    optimizer = AdamW(model.parameters(), lr=LEARNING_RATE, eps=1e-6)
 
     # --- B. EPOCH LOOP ---
     for epoch in range(EPOCHS):
@@ -90,8 +91,18 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
             optimizer.zero_grad()
             outputs = model(**batch)
             loss = outputs.loss
+
+            # 1. NAN AUTO-SKIP (The Eject Button)
+            if torch.isnan(loss):
+                print(f"!!! NAN DETECTED at Epoch {epoch+1} !!! Skipping batch.")
+                optimizer.zero_grad() 
+                continue
             
             loss.backward()
+
+            # 2. GRADIENT CLIPPING (The Circuit Breaker)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            
             optimizer.step()
             
             total_loss += loss.item()
