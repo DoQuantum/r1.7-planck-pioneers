@@ -61,7 +61,7 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
     # ==========================================
     # SKIP ALREADY COMPLETED FOLDS (1 & 2)
     # ==========================================
-    if fold_num < 4: 
+    if fold_num < 5: 
         print(f"Skipping Fold {fold_num} (Already verified safe)...")
         continue
     # ==========================================
