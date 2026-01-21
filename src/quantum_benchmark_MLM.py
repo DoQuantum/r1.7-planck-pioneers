@@ -57,6 +57,15 @@ results = []
 
 for fold_idx, (train_loader, val_loader) in enumerate(folds):
     fold_num = fold_idx + 1
+
+    # ==========================================
+    # SKIP ALREADY COMPLETED FOLDS (1 & 2)
+    # ==========================================
+    if fold_num < 3: 
+        print(f"Skipping Fold {fold_num} (Already verified safe)...")
+        continue
+    # ==========================================
+
     print("\n" + "#"*60)
     print(f"STARTING FOLD {fold_num}/{N_FOLDS}")
     print("#"*60)
@@ -100,9 +109,25 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
             
             loss.backward()
 
+            # ====================================================
+            # 2. NEW: NAN GRADIENT CHECK (The "Silent Killer" Fix)
+            # ====================================================
+            valid_gradients = True
+            for name, param in model.named_parameters():
+                if param.grad is not None:
+                    if torch.isnan(param.grad).any() or torch.isinf(param.grad).any():
+                        valid_gradients = False
+                        break
+            
+            if not valid_gradients:
+                print(f"!!! NAN GRADIENTS DETECTED at Epoch {epoch+1} !!! Skipping step.")
+                optimizer.zero_grad()
+                continue
+            # ====================================================
+
             # 2. GRADIENT CLIPPING (The Circuit Breaker)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            
+
             optimizer.step()
             
             total_loss += loss.item()
