@@ -375,6 +375,13 @@ class CustomBertForMaskedLM_LastLayerAttention(BertForMaskedLM):
 
         LAST_LAYER = config.num_hidden_layers - 1
 
+        # 2. ### FIX: Get weights from the old smart layer
+        old_weights = self.bert.encoder.layer[LAST_LAYER].attention.self.state_dict()
+        
+        # 3. ### FIX: Paste them into the new layer
+        # strict=False tells it to ignore that the "quantum" weights are missing in the old one
+        custom_attention.load_state_dict(old_weights, strict=False)
+
         custom_attention = CustomLastLayerSelfAttention(
             config,
             n_qubits=n_qubits,
