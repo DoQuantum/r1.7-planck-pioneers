@@ -1,0 +1,231 @@
+import torch
+import math
+import json
+import os
+from tqdm import tqdm
+from datasets import load_dataset
+from transformers import (
+    BertTokenizer,
+    BertForMaskedLM,
+    BertConfig,
+    DataCollatorForLanguageModeling,
+    logging
+)
+
+# IMPORTS FROM YOUR FILE
+from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAttention
+
+# Silence warnings
+logging.set_verbosity_error()
+
+# ---------------------------------------------------------
+# 1. MLM Accuracy Function
+# ---------------------------------------------------------
+def compute_mlm_accuracy(logits, labels):
+    predictions = torch.argmax(logits, dim=-1)
+    mask = labels != -100  # only evaluate masked positions
+    if mask.sum() == 0:
+        return 0
+    correct = (predictions[mask] == labels[mask]).sum().item()
+    total = mask.sum().item()
+    return correct / total
+
+# ---------------------------------------------------------
+# 2. Load and evaluate a single model
+# ---------------------------------------------------------
+# ---------------------------------------------------------
+# 2. Load and evaluate a single model (THE MANUAL OVERRIDE FIX)
+# ---------------------------------------------------------
+# ---------------------------------------------------------
+# 2. Load and evaluate a single model (SMARTER FIX)
+# ---------------------------------------------------------
+# ---------------------------------------------------------
+# 2. Load and evaluate a single model (THE LOGIC-PROOF FIX)
+# ---------------------------------------------------------
+def evaluate_model(model_path, test_loader, device):
+    print(f"\n{'='*40}")
+    print(f"EVALUATING: {model_path}")
+    print(f"{'='*40}")
+    
+    try:
+        # PATH 1: QUANTUM MODELS
+        if "QUANTUM" in model_path:
+            print(">> Detected QUANTUM model. Using Manual Construction...")
+            
+            # A. Load the configuration (JSON) only
+            config = BertConfig.from_pretrained(model_path)
+            
+            # B. Create a fresh model structure (Random weights for now)
+            model = CustomBertForMaskedLM_LastLayerAttention(
+                config,
+                use_quantum_simulator=True 
+            )
+            
+            # C. Find and Load the weights to CPU
+            bin_path = os.path.join(model_path, "pytorch_model.bin")
+            safe_path = os.path.join(model_path, "model.safetensors")
+            
+            state_dict = None
+            if os.path.exists(bin_path):
+                print(f"   Loading weights from {bin_path}...")
+                state_dict = torch.load(bin_path, map_location="cpu")
+            elif os.path.exists(safe_path):
+                print(f"   Loading weights from {safe_path}...")
+                from safetensors.torch import load_file
+                state_dict = load_file(safe_path)
+            else:
+                raise FileNotFoundError(f"No weights found in {model_path}")
+
+            # D. Force the weights into the model
+            # strict=False allows minor mismatches (safest for custom models)
+            model.load_state_dict(state_dict, strict=False)
+            print("   ✓ Weights loaded successfully!")
+            
+        # PATH 2: CLASSICAL / BASELINE MODELS
+        else:
+            print(">> Detected CLASSICAL/Standard model. Using Standard BERT...")
+            model = BertForMaskedLM.from_pretrained(model_path)
+            
+        model.to(device)
+        model.eval()
+
+        total_loss = 0
+        total_acc = 0
+        batches = 0
+
+        # Run Evaluation
+        for batch in tqdm(test_loader, desc="Testing"):
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            labels = batch["labels"].to(device)
+
+            with torch.no_grad():
+                outputs = model(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    labels=labels
+                )
+
+            loss = outputs.loss
+            logits = outputs.logits
+            
+            total_loss += loss.item()
+            total_acc += compute_mlm_accuracy(logits, labels)
+            batches += 1
+
+        avg_loss = total_loss / batches
+        avg_acc = total_acc / batches
+        perplexity = math.exp(avg_loss) if avg_loss < 20 else float("inf")
+        
+        print(f"   -> Loss: {avg_loss:.4f}")
+        print(f"   -> Accuracy: {avg_acc:.4f}")
+        print(f"   -> Perplexity: {perplexity:.4f}")
+
+        return {
+            "model": model_path,
+            "loss": avg_loss,
+            "accuracy": avg_acc,
+            "perplexity": perplexity
+        }
+
+    except Exception as e:
+        print(f"❌ FAILED to load/evaluate {model_path}")
+        print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+# ---------------------------------------------------------
+# 3. Prepare IMDb test data
+# ---------------------------------------------------------
+def prepare_test_loader(tokenizer, batch_size=8):
+    print("Loading dataset...")
+    imdb = load_dataset("imdb")
+
+    # IMPORTANT: The full test set is 25k samples. 
+    # For a quick eval, let's use a subset (e.g., 1000 samples).
+    # If you want the FULL rigorous evaluation, remove .select(range(1000))
+    print("Selecting 1,000 test samples for evaluation...")
+    test_data = imdb["test"].shuffle(seed=42).select(range(1000))
+
+    print("Tokenizing...")
+    def tokenize(batch):
+        return tokenizer(
+            batch["text"],
+            truncation=True,
+            padding=False,
+            max_length=128, # Match training length
+            return_special_tokens_mask=True
+        )
+
+    tokenized = test_data.map(tokenize, batched=True)
+    tokenized = tokenized.remove_columns(
+        [col for col in tokenized.column_names if col not in ["input_ids", "attention_mask", "special_tokens_mask"]]
+    )
+
+    collator = DataCollatorForLanguageModeling(
+        tokenizer=tokenizer,
+        mlm=True,
+        mlm_probability=0.15
+    )
+
+    from torch.utils.data import DataLoader
+    test_loader = DataLoader(
+        tokenized,
+        batch_size=batch_size,
+        shuffle=False,
+        collate_fn=collator
+    )
+
+    return test_loader
+
+# ---------------------------------------------------------
+# 4. Main evaluation runner
+# ---------------------------------------------------------
+def run_evaluation():
+    # Detect GPU if available (mps for mac, cuda for nvidia, else cpu)
+    # FORCE CPU to prevent PennyLane/MPS/CUDA conflicts
+    device = torch.device("cpu")
+        
+    print(f"Using device: {device}")
+
+    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+    test_loader = prepare_test_loader(tokenizer)
+
+    # LIST YOUR FOLDERS HERE
+    # Make sure these folder names match exactly what you have in VS Code
+    model_paths = [
+        # The Baseline
+        "bert-base-uncased",
+        
+        # --- QUANTUM MODELS (Epoch 2 only) ---
+        #"./QUANTUM_fold1_epoch2",
+        #"./QUANTUM_fold2_epoch2",
+        #"./QUANTUM_fold3_epoch2",
+        
+        # --- CLASSICAL MODELS (Epoch 2 only) ---
+        "./CLASSICAL_fold1_epoch2", 
+        "./CLASSICAL_fold2_epoch2", 
+        "./CLASSICAL_fold3_epoch2", 
+    ]
+    
+    # Filter to only run paths that actually exist
+    valid_paths = [p for p in model_paths if os.path.exists(p) or p == "bert-base-uncased"]
+
+    results = []
+
+    for mp in valid_paths:
+        r = evaluate_model(mp, test_loader, device)
+        if r:
+            results.append(r)
+
+    # Save to JSON
+    with open("SmallQuantum_evaluation_results.json", "w") as f:
+        json.dump(results, f, indent=2)
+
+    print("\n=== FINAL RESULTS ===")
+    for r in results:
+        print(f"{r['model']}: Acc={r['accuracy']:.4f}, Perplexity={r['perplexity']:.4f}")
+
+if __name__ == "__main__":
+    run_evaluation()
