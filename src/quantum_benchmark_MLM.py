@@ -71,6 +71,18 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
     )
     model.to(device)
     
+    print("FORCE-LOADING standard BERT weights into Layer 11...")
+    from transformers import BertModel
+    # 1. Load a temporary "clean" BERT
+    temp_bert = BertModel.from_pretrained('bert-base-uncased')
+    
+    # 2. Grab the smart weights from Layer 11
+    smart_weights = temp_bert.encoder.layer[11].attention.self.state_dict()
+    
+    # 3. Force-load them into your Custom Model's Layer 11
+    #    (We use strict=False to ignore the quantum parameters, which stay at 0.0)
+    model.bert.encoder.layer[11].attention.self.load_state_dict(smart_weights, strict=False)
+    
     # optimizer = AdamW(model.parameters(), lr=LEARNING_RATE)
     optimizer = AdamW(model.parameters(), lr=LEARNING_RATE, eps=1e-6)
 
