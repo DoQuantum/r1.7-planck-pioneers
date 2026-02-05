@@ -67,7 +67,7 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
     print(f"Initializing Fresh Quantum Model for Fold {fold_num}...")
     model = CustomBertForMaskedLM_LastLayerAttention.from_pretrained(
         'bert-base-uncased',
-        use_quantum_simulator= False
+        use_quantum_simulator= True
     )
     model.to(device)
     

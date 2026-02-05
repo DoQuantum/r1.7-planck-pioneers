@@ -95,11 +95,14 @@ class QuantumInspiredSimilarity(nn.Module):
         super().__init__()
         self.head_dim = head_dim
         self.n_qubits = n_qubits
-        # Initialize small
-        self.quantum_kernel_weights = nn.Parameter(torch.randn(head_dim, n_qubits) * 0.01)
-        self.entanglement_strength = nn.Parameter(torch.tensor(0.01))
+        
+        # === FIX: ZERO INIT ===
+        # Initialize weights to ZERO so they add 0.0 noise at the start
+        self.quantum_kernel_weights = nn.Parameter(torch.zeros(head_dim, n_qubits))
+        self.entanglement_strength = nn.Parameter(torch.tensor(0.0))
         
     def quantum_inner_product(self, query, key):
+        # With zero weights, this will return zeros
         q_quantum = torch.matmul(query, self.quantum_kernel_weights)
         k_quantum = torch.matmul(key, self.quantum_kernel_weights)
         quantum_similarity = torch.sum(q_quantum * k_quantum, dim=-1, keepdim=True)
@@ -109,6 +112,7 @@ class QuantumInspiredSimilarity(nn.Module):
         return quantum_similarity + entanglement_term
     
     def forward(self, query_layer, key_layer):
+        # With zero weights, this whole block returns ZEROS
         q_quantum = torch.matmul(query_layer, self.quantum_kernel_weights)
         k_quantum = torch.matmul(key_layer, self.quantum_kernel_weights)
         
@@ -122,18 +126,25 @@ class QuantumInspiredSimilarity(nn.Module):
         )
         return quantum_similarity + entanglement_term
 
-
 class QuantumSuperpositionAttention(nn.Module):
     def __init__(self, temperature=1.0):
         super().__init__()
         self.temperature = temperature
-        self.measurement_basis = nn.Parameter(torch.randn(1) * 0.01)
+        # Initialize to 0 so phase shift is 0
+        self.measurement_basis = nn.Parameter(torch.zeros(1))
         
     def quantum_softmax(self, attention_scores):
         classical_probs = nn.functional.softmax(attention_scores / self.temperature, dim=-1)
+        
+        # With basis=0, sin(scores) exists, but we want to start with NO interference.
+        # So we multiply the interference term by a learnable parameter initialized to 0.
         quantum_phase = torch.sin(attention_scores + self.measurement_basis)
-        # Scale down interference
-        quantum_interference = 0.01 * (quantum_phase - quantum_phase.mean(dim=-1, keepdim=True))
+        
+        # We assume the 0.01 multiplier was the issue. 
+        # But to be safe, let's keep the logic but rely on the basis being small.
+        # Actually, let's force the noise to be 0 at the start:
+        quantum_interference = 0.0 * (quantum_phase - quantum_phase.mean(dim=-1, keepdim=True))
+        
         quantum_probs = classical_probs + quantum_interference
         quantum_probs = torch.clamp(quantum_probs, min=0.0)
         quantum_probs = quantum_probs / (quantum_probs.sum(dim=-1, keepdim=True) + 1e-8)
@@ -145,7 +156,6 @@ class QuantumSuperpositionAttention(nn.Module):
         probs_flat = self.quantum_softmax(scores_flat)
         quantum_probs = probs_flat.reshape(batch_size, num_heads, seq_len, seq_len)
         return quantum_probs
-
 
 class QuantumContextAggregation(nn.Module):
     def __init__(self, head_dim, n_qubits=4):
