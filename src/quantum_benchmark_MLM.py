@@ -106,6 +106,12 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
         for batch in loop:
             # Move batch to GPU
             batch = {k: v.to(device) for k, v in batch.items()}
+
+            # === 🔍 DATA DEBUG CHECK (Run once then delete) ===
+            print(f"\nSAMPLE LABELS: {batch['labels'][0][:10]}")
+            print(f"SAMPLE INPUTS: {batch['input_ids'][0][:10]}")
+            exit() # Stop immediately so we can read it
+            # ==================================================
             
             optimizer.zero_grad()
             outputs = model(**batch)
