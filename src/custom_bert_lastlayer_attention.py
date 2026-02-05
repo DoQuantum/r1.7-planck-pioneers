@@ -79,7 +79,8 @@ class QuantumFeatureMapEncoder(nn.Module):
                     torch.sin(encoded[..., i:i+1] + self.rotation_params[i, 0]) * torch.cos(encoded[..., i:i+1] + self.rotation_params[i, 1]) +
                     self.rotation_params[i, 2]
                 )
-                encoded[..., i] = encoded[..., i] + 0.1 * rotation_effect
+                encoded[..., i] = encoded[..., i] + 0.1 * rotation_effect.squeeze(-1)
+                #encoded[..., i] = encoded[..., i] + 0.1 * rotation_effect
             encoded = torch.tanh(encoded)
         
         return encoded
