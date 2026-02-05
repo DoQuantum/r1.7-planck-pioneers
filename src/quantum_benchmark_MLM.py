@@ -17,7 +17,7 @@ from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAtten
 # CONFIGURATION
 # ==============================================================================
 N_FOLDS = 5
-EPOCHS = 3
+EPOCHS = 1
 LEARNING_RATE = 1e-5
 BATCH_SIZE = 8  # Adjust this depending on your GPU memory (try 16 if 8 is easy)
 
@@ -57,14 +57,6 @@ results = []
 
 for fold_idx, (train_loader, val_loader) in enumerate(folds):
     fold_num = fold_idx + 1
-
-    # ==========================================
-    # SKIP ALREADY COMPLETED FOLDS (1 & 2)
-    # ==========================================
-    if fold_num < 5: 
-        print(f"Skipping Fold {fold_num} (Already verified safe)...")
-        continue
-    # ==========================================
 
     print("\n" + "#"*60)
     print(f"STARTING FOLD {fold_num}/{N_FOLDS}")
@@ -152,7 +144,7 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
         
         print(f"   -> Val Loss: {avg_val_loss:.4f} | Perplexity: {perplexity:.4f}")
         
-        save_path = f"./QUANTUM_FULL_fold{fold_num}_epoch{epoch+1}"
+        save_path = f"./QUANTUM_TEST_FULL_fold{fold_num}_epoch{epoch+1}"
         print(f"   Saving checkpoint to {save_path}...")
         model.save_pretrained(save_path)
 

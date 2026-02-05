@@ -375,13 +375,10 @@ class CustomBertForMaskedLM_LastLayerAttention(BertForMaskedLM):
 
         LAST_LAYER = config.num_hidden_layers - 1
 
-        # 2. ### FIX: Get weights from the old smart layer
+        # 1. Get the "Smart" weights FIRST
         old_weights = self.bert.encoder.layer[LAST_LAYER].attention.self.state_dict()
-        
-        # 3. ### FIX: Paste them into the new layer
-        # strict=False tells it to ignore that the "quantum" weights are missing in the old one
-        custom_attention.load_state_dict(old_weights, strict=False)
 
+        # 2. THEN Create the New Layer
         custom_attention = CustomLastLayerSelfAttention(
             config,
             n_qubits=n_qubits,
@@ -389,6 +386,11 @@ class CustomBertForMaskedLM_LastLayerAttention(BertForMaskedLM):
             use_quantum_simulator=use_quantum_simulator
         )
 
+        # 3. NOW paste the weights (This won't crash anymore)
+        custom_attention.load_state_dict(old_weights, strict=False)
+        print("✓ FIXED: Transferred pre-trained weights to custom layer.")
+
+        # 4. Swap the layer
         layer = self.bert.encoder.layer[LAST_LAYER]
         layer.attention.self = custom_attention
         
