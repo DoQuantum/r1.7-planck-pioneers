@@ -71,17 +71,23 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
     )
     model.to(device)
     
-    print("FORCE-LOADING standard BERT weights into Layer 11...")
-    from transformers import BertModel
-    # 1. Load a temporary "clean" BERT
-    temp_bert = BertModel.from_pretrained('bert-base-uncased')
+    print("🚑 FORCE-LOADING ENTIRE TEACHER STATE (Body + Head)...")
+    from transformers import BertForMaskedLM
     
-    # 2. Grab the smart weights from Layer 11
-    smart_weights = temp_bert.encoder.layer[11].attention.self.state_dict()
+    # 1. Load the Perfect Teacher (Standard BERT with correct Head)
+    teacher = BertForMaskedLM.from_pretrained('bert-base-uncased')
     
-    # 3. Force-load them into your Custom Model's Layer 11
-    #    (We use strict=False to ignore the quantum parameters, which stay at 0.0)
-    model.bert.encoder.layer[11].attention.self.load_state_dict(smart_weights, strict=False)
+    # 2. Get the Teacher's State
+    teacher_state = teacher.state_dict()
+    
+    # 3. Force-Load into Student
+    #    strict=False is CRITICAL here. 
+    #    It tells PyTorch: "Load everything you recognize (Body, Head, Layers). 
+    #    Ignore the fact that the Student has extra 'quantum' keys that the Teacher lacks."
+    missing_keys, unexpected_keys = model.load_state_dict(teacher_state, strict=False)
+    
+    print(f"   - Missing Keys (Should be 0 for standard BERT parts): {len([k for k in missing_keys if 'quantum' not in k])}")
+    print(f"   - Unexpected Keys (Should be all your Quantum stuff): {len(unexpected_keys)}")
     
     # optimizer = AdamW(model.parameters(), lr=LEARNING_RATE)
     optimizer = AdamW(model.parameters(), lr=LEARNING_RATE, eps=1e-6)
