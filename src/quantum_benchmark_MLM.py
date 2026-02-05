@@ -17,7 +17,7 @@ from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAtten
 # CONFIGURATION
 # ==============================================================================
 N_FOLDS = 5
-EPOCHS = 1
+EPOCHS = 3
 LEARNING_RATE = 1e-5
 BATCH_SIZE = 8  # Adjust this depending on your GPU memory (try 16 if 8 is easy)
 
@@ -106,12 +106,6 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
         for batch in loop:
             # Move batch to GPU
             batch = {k: v.to(device) for k, v in batch.items()}
-
-            # === 🔍 DATA DEBUG CHECK (Run once then delete) ===
-            print(f"\nSAMPLE LABELS: {batch['labels'][0][:10]}")
-            print(f"SAMPLE INPUTS: {batch['input_ids'][0][:10]}")
-            exit() # Stop immediately so we can read it
-            # ==================================================
             
             optimizer.zero_grad()
             outputs = model(**batch)
@@ -168,7 +162,7 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
         
         print(f"   -> Val Loss: {avg_val_loss:.4f} | Perplexity: {perplexity:.4f}")
         
-        save_path = f"./QUANTUM_TEST_FULL_fold{fold_num}_epoch{epoch+1}"
+        save_path = f"./QUANTUM_BASE_fold{fold_num}_epoch{epoch+1}"
         print(f"   Saving checkpoint to {save_path}...")
         model.save_pretrained(save_path)
 
