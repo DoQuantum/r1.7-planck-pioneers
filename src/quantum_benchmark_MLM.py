@@ -17,9 +17,10 @@ from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAtten
 # CONFIGURATION
 # ==============================================================================
 N_FOLDS = 5
+START_FOLD = 2    # <--- NEW: STARTS AT FOLD 2 (Skips Fold 1)
 EPOCHS = 3
 LEARNING_RATE = 1e-5
-BATCH_SIZE = 8  # Adjust this depending on your GPU memory (try 16 if 8 is easy)
+BATCH_SIZE = 8  
 
 # ==============================================================================
 # 1. SETUP & DATA LOADING
@@ -28,11 +29,9 @@ print("Loading Tokenizer...")
 _, tokenizer = get_BertMaskedLM_BertTokenizer_MLM()
 
 print("Loading FULL IMDb Dataset...")
-# This loads the full 25k train / 25k test dataset
 dataset = load_dataset("imdb")
 
 print(f"Splitting into {N_FOLDS} Folds...")
-# This will handle the 80/20 split logic for us
 folds = prepare_data_kfold_MLM(
     data=dataset,
     tokenizer=tokenizer,
@@ -58,12 +57,16 @@ results = []
 for fold_idx, (train_loader, val_loader) in enumerate(folds):
     fold_num = fold_idx + 1
 
+    # --- 🛑 RESTART LOGIC: SKIP COMPLETED FOLDS ---
+    if fold_num < START_FOLD:
+        print(f"⏩ SKIPPING FOLD {fold_num} (Already Completed)")
+        continue
+
     print("\n" + "#"*60)
     print(f"STARTING FOLD {fold_num}/{N_FOLDS}")
     print("#"*60)
 
     # --- A. INITIALIZE FRESH MODEL FOR THIS FOLD ---
-    # We must reload from scratch so Fold 2 doesn't start with Fold 1's weights
     print(f"Initializing Fresh Quantum Model for Fold {fold_num}...")
     model = CustomBertForMaskedLM_LastLayerAttention.from_pretrained(
         'bert-base-uncased',
@@ -74,22 +77,14 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
     print("🚑 FORCE-LOADING ENTIRE TEACHER STATE (Body + Head)...")
     from transformers import BertForMaskedLM
     
-    # 1. Load the Perfect Teacher (Standard BERT with correct Head)
     teacher = BertForMaskedLM.from_pretrained('bert-base-uncased')
-    
-    # 2. Get the Teacher's State
     teacher_state = teacher.state_dict()
     
-    # 3. Force-Load into Student
-    #    strict=False is CRITICAL here. 
-    #    It tells PyTorch: "Load everything you recognize (Body, Head, Layers). 
-    #    Ignore the fact that the Student has extra 'quantum' keys that the Teacher lacks."
     missing_keys, unexpected_keys = model.load_state_dict(teacher_state, strict=False)
     
     print(f"   - Missing Keys (Should be 0 for standard BERT parts): {len([k for k in missing_keys if 'quantum' not in k])}")
     print(f"   - Unexpected Keys (Should be all your Quantum stuff): {len(unexpected_keys)}")
     
-    # optimizer = AdamW(model.parameters(), lr=LEARNING_RATE)
     optimizer = AdamW(model.parameters(), lr=LEARNING_RATE, eps=1e-6)
 
     # --- B. EPOCH LOOP ---
@@ -104,14 +99,13 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
         loop = tqdm(train_loader, desc=f"Training F{fold_num}-E{epoch+1}")
         
         for batch in loop:
-            # Move batch to GPU
             batch = {k: v.to(device) for k, v in batch.items()}
             
             optimizer.zero_grad()
             outputs = model(**batch)
             loss = outputs.loss
 
-            # 1. NAN AUTO-SKIP (The Eject Button)
+            # 1. NAN AUTO-SKIP
             if torch.isnan(loss):
                 print(f"!!! NAN DETECTED at Epoch {epoch+1} !!! Skipping batch.")
                 optimizer.zero_grad() 
@@ -119,9 +113,7 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
             
             loss.backward()
 
-            # ====================================================
-            # 2. NEW: NAN GRADIENT CHECK (The "Silent Killer" Fix)
-            # ====================================================
+            # 2. NAN GRADIENT CHECK
             valid_gradients = True
             for name, param in model.named_parameters():
                 if param.grad is not None:
@@ -133,9 +125,8 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
                 print(f"!!! NAN GRADIENTS DETECTED at Epoch {epoch+1} !!! Skipping step.")
                 optimizer.zero_grad()
                 continue
-            # ====================================================
 
-            # 2. GRADIENT CLIPPING (The Circuit Breaker)
+            # 3. GRADIENT CLIPPING
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
             optimizer.step()
@@ -158,7 +149,7 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
                 val_loss += outputs.loss.item()
         
         avg_val_loss = val_loss / len(val_loader)
-        perplexity = math.exp(min(avg_val_loss, 20)) # Cap at 20 to avoid overflow
+        perplexity = math.exp(min(avg_val_loss, 20)) 
         
         print(f"   -> Val Loss: {avg_val_loss:.4f} | Perplexity: {perplexity:.4f}")
         
@@ -166,7 +157,6 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
         print(f"   Saving checkpoint to {save_path}...")
         model.save_pretrained(save_path)
 
-    # Log simple result
     results.append({
         "fold": fold_num,
         "final_loss": avg_val_loss,
