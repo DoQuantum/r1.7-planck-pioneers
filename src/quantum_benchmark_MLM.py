@@ -17,7 +17,7 @@ from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAtten
 # CONFIGURATION
 # ==============================================================================
 N_FOLDS = 5
-START_FOLD = 1   
+START_FOLD = 3   
 EPOCHS = 3
 LEARNING_RATE = 1e-5
 BATCH_SIZE = 8  
