@@ -17,7 +17,7 @@ from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAtten
 # CONFIGURATION
 # ==============================================================================
 N_FOLDS = 5
-START_FOLD = 3    # <--- NEW: STARTS AT FOLD 2 (Skips Fold 1)
+START_FOLD = 1   
 EPOCHS = 3
 LEARNING_RATE = 1e-5
 BATCH_SIZE = 8  
@@ -57,7 +57,7 @@ results = []
 for fold_idx, (train_loader, val_loader) in enumerate(folds):
     fold_num = fold_idx + 1
 
-    # --- 🛑 RESTART LOGIC: SKIP COMPLETED FOLDS ---
+    # --- RESTART LOGIC: SKIP COMPLETED FOLDS ---
     if fold_num < START_FOLD:
         print(f"⏩ SKIPPING FOLD {fold_num} (Already Completed)")
         continue
@@ -70,11 +70,12 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
     print(f"Initializing Fresh Quantum Model for Fold {fold_num}...")
     model = CustomBertForMaskedLM_LastLayerAttention.from_pretrained(
         'bert-base-uncased',
+        n_qubits=4,
         use_quantum_simulator= True
     )
     model.to(device)
     
-    print("🚑 FORCE-LOADING ENTIRE TEACHER STATE (Body + Head)...")
+    print("FORCE-LOADING ENTIRE TEACHER STATE (Body + Head)...")
     from transformers import BertForMaskedLM
     
     teacher = BertForMaskedLM.from_pretrained('bert-base-uncased')
