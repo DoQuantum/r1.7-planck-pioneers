@@ -17,7 +17,7 @@ from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAtten
 # CONFIGURATION
 # ==============================================================================
 N_FOLDS = 5
-START_FOLD = 3    # <--- NEW: STARTS AT FOLD 2 (Skips Fold 1)
+START_FOLD = 1    # <--- NEW: STARTS AT FOLD 2 (Skips Fold 1)
 EPOCHS = 3
 LEARNING_RATE = 1e-5
 BATCH_SIZE = 8  
@@ -84,6 +84,16 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
     
     print(f"   - Missing Keys (Should be 0 for standard BERT parts): {len([k for k in missing_keys if 'quantum' not in k])}")
     print(f"   - Unexpected Keys (Should be all your Quantum stuff): {len(unexpected_keys)}")
+    
+    # ==========================================
+# 🥶 FREEZING EXPERIMENT
+# ==========================================
+    print("🥶 FREEZING Classical Layers... Only Quantum parameters will update!")
+    for name, param in model.named_parameters():
+        if "quantum" not in name:  # Lock everything except quantum
+            param.requires_grad = False
+# ==========================================
+
     
     optimizer = AdamW(model.parameters(), lr=LEARNING_RATE, eps=1e-6)
 
