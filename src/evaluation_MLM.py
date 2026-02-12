@@ -137,7 +137,7 @@ def prepare_test_loader(tokenizer, batch_size=16):
 def run_evaluation():
     # Detect GPU
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
+    print(f"Using deviceghfhgfhfh: {device}")
 
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     test_loader = prepare_test_loader(tokenizer)
