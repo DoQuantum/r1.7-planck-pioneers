@@ -17,7 +17,7 @@ from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAtten
 # CONFIGURATION
 # ==============================================================================
 N_FOLDS = 5
-START_FOLD = 5   
+START_FOLD = 1   
 EPOCHS = 3
 LEARNING_RATE = 1e-5
 BATCH_SIZE = 8  
@@ -70,7 +70,7 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
     print(f"Initializing Fresh Quantum Model for Fold {fold_num}...")
     model = CustomBertForMaskedLM_LastLayerAttention.from_pretrained(
         'bert-base-uncased',
-        n_qubits=4,
+        n_qubits=8,
         use_quantum_simulator= True
     )
     model.to(device)
