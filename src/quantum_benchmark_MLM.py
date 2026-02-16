@@ -19,7 +19,7 @@ from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAtten
 N_FOLDS = 5
 START_FOLD = 1   
 EPOCHS = 3
-LEARNING_RATE = 1e-5
+LEARNING_RATE = 1e-6
 BATCH_SIZE = 8  
 
 # ==============================================================================
@@ -128,7 +128,7 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
                 continue
 
             # 3. GRADIENT CLIPPING
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
 
             optimizer.step()
             
