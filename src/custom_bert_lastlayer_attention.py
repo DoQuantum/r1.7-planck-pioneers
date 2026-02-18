@@ -320,10 +320,10 @@ class CustomBertForMaskedLM_LastLayerAttention(BertForMaskedLM):
     def __init__(self, config, n_qubits=4, enable_quantum_features=True, use_quantum_simulator=False):
         super().__init__(config)
 
-        LAST_LAYER = config.num_hidden_layers - 1
+        TARGET_LAYER = 6
 
         # 1. Get the "Smart" weights FIRST
-        old_weights = self.bert.encoder.layer[LAST_LAYER].attention.self.state_dict()
+        old_weights = self.bert.encoder.layer[TARGET_LAYER].attention.self.state_dict()
 
         # 2. THEN Create the New Layer
         custom_attention = CustomLastLayerSelfAttention(
@@ -338,7 +338,7 @@ class CustomBertForMaskedLM_LastLayerAttention(BertForMaskedLM):
         print("✓ FIXED: Transferred pre-trained weights to custom layer.")
 
         # 4. Swap the layer
-        layer = self.bert.encoder.layer[LAST_LAYER]
+        layer = self.bert.encoder.layer[TARGET_LAYER]
         layer.attention.self = custom_attention
         
-        print(f"✓ Replaced layer {LAST_LAYER} with quantum-enhanced attention")
+        print(f"✓ Replaced layer {TARGET_LAYER} with quantum-enhanced attention")

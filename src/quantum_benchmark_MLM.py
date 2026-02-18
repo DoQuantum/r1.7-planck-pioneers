@@ -17,7 +17,7 @@ from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAtten
 # CONFIGURATION
 # ==============================================================================
 N_FOLDS = 5
-START_FOLD = 5   
+START_FOLD = 1   
 EPOCHS = 3
 LEARNING_RATE = 1e-5
 BATCH_SIZE = 8  
@@ -154,7 +154,7 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
         
         print(f"   -> Val Loss: {avg_val_loss:.4f} | Perplexity: {perplexity:.4f}")
         
-        save_path = f"./QUANTUM_BASE_fold{fold_num}_epoch{epoch+1}"
+        save_path = f"./QUANTUM_6THLAYER_fold{fold_num}_epoch{epoch+1}"
         print(f"   Saving checkpoint to {save_path}...")
         model.save_pretrained(save_path)
 
