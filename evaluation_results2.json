@@ -1,8 +1,0 @@
-[
-  {
-    "model": "bert-base-uncased",
-    "loss": 2.340266664810181,
-    "accuracy": 0.5823348976845786,
-    "perplexity": 10.384005242347593
-  }
-]
