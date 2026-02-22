@@ -1,19 +1,38 @@
-from transformers import AutoModelForSequenceClassification
+import torch
+from datasets import load_dataset
+from transformers import AutoTokenizer
 
-from quantum_head import QuantumClassifier
 
+def prepare_data(sample_size=1000):
+    print(f"Loading IMDB dataset and taking {sample_size} samples...")
+    dataset = load_dataset("imdb")
 
-def build_hybrid_model():
-    # Load TinyBERT (4 layers, 312 hidden dim)
-    model = AutoModelForSequenceClassification.from_pretrained(
-        "huawei-noah/TinyBERT_General_4L_312D", num_labels=2
+    # Shuffle and subset to save time
+    train_data = dataset["train"].shuffle(seed=42).select(range(sample_size))
+    test_data = dataset["test"].shuffle(seed=42).select(range(sample_size // 5))
+
+    tokenizer = AutoTokenizer.from_pretrained("huawei-noah/TinyBERT_General_4L_312D")
+
+    def tokenize_function(examples):
+        return tokenizer(
+            examples["text"], padding="max_length", truncation=True, max_length=128
+        )
+
+    tokenized_train = train_data.map(tokenize_function, batched=True)
+    tokenized_test = test_data.map(tokenize_function, batched=True)
+
+    # Set format for PyTorch
+    tokenized_train.set_format(
+        type="torch", columns=["input_ids", "attention_mask", "label"]
+    )
+    tokenized_test.set_format(
+        type="torch", columns=["input_ids", "attention_mask", "label"]
     )
 
-    # Replace the classical head
-    model.classifier = QuantumClassifier(tinybert_dim=312, n_classes=2)
+    torch.save(tokenized_train, "train_subset.pt")
+    torch.save(tokenized_test, "test_subset.pt")
+    print("Data saved to .pt files!")
 
-    # Freeze the BERT layers initially to only train the Quantum Head (Transfer Learning)
-    for param in model.bert.parameters():
-        param.requires_grad = False
 
-    return model
+if __name__ == "__main__":
+    prepare_data()

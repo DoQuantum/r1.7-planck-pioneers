@@ -1,8 +1,7 @@
 torch>=2.0.0
-transformers
-pennylane
-pennylane-lightning[gpu]
-pennylane-ionq
-datasets
+transformers>=4.30.0
+datasets>=2.14.0
+pennylane>=0.33.0
+PennyLane-Lightning[gpu]
+PennyLane-IonQ
 scikit-learn
-datasets
