@@ -36,11 +36,16 @@ class QuantumClassifier(nn.Module):
     def forward(self, x):
         x = self.pre_net(x)
 
-        # Clamp to prevent inf/nan from upstream
-        x = torch.clamp(x, min=-1e6, max=1e6)
+        # KEY FIX: Tame the output with tanh to bound values to [-1, 1]
+        x = torch.tanh(x)
 
-        # Explicit L2 normalization
-        x = x / (x.norm(dim=-1, keepdim=True) + 1e-8)
+        # Replace any remaining nan/inf (belt and suspenders)
+        x = torch.nan_to_num(x, nan=0.0, posinf=1.0, neginf=-1.0)
+
+        # Ensure no zero-vectors before normalization
+        norms = x.norm(dim=-1, keepdim=True)
+        norms = torch.clamp(norms, min=1e-8)
+        x = x / norms
 
         x = self.q_layer(x)
         return self.post_net(x)
