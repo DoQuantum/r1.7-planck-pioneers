@@ -3,13 +3,16 @@ from datasets import load_dataset
 from transformers import AutoTokenizer
 
 
-def prepare_data(sample_size=1000):
-    print(f"Loading IMDB dataset and taking {sample_size} samples...")
+def prepare_data():
+    # Half-full IMDB: 12,500 train, 5,000 test
+    TRAIN_SIZE = 12500
+    TEST_SIZE = 5000
+
+    print(f"Loading IMDB dataset ({TRAIN_SIZE} train, {TEST_SIZE} test)...")
     dataset = load_dataset("imdb")
 
-    # Shuffle and subset to save time
-    train_data = dataset["train"].shuffle(seed=42).select(range(sample_size))
-    test_data = dataset["test"].shuffle(seed=42).select(range(sample_size // 5))
+    train_data = dataset["train"].shuffle(seed=42).select(range(TRAIN_SIZE))
+    test_data = dataset["test"].shuffle(seed=42).select(range(TEST_SIZE))
 
     tokenizer = AutoTokenizer.from_pretrained("huawei-noah/TinyBERT_General_4L_312D")
 
