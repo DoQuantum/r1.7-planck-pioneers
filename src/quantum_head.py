@@ -36,9 +36,11 @@ class QuantumClassifier(nn.Module):
     def forward(self, x):
         x = self.pre_net(x)
 
-        # SAFETY FIX: Add tiny noise to prevent exact zero vectors
-        # This ensures 'normalize=True' never encounters a 0-norm vector
-        x = x + torch.randn_like(x) * 1e-9
+        # Clamp to prevent inf/nan from upstream
+        x = torch.clamp(x, min=-1e6, max=1e6)
+
+        # Explicit L2 normalization
+        x = x / (x.norm(dim=-1, keepdim=True) + 1e-8)
 
         x = self.q_layer(x)
         return self.post_net(x)
