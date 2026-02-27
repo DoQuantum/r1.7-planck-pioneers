@@ -2,15 +2,15 @@ import pennylane as qml
 import torch
 import torch.nn as nn
 
-n_qubits = 8  # Upgraded to 8 qubits
+n_qubits = 8  # 8 qubits
 dev = qml.device("lightning.gpu", wires=n_qubits)
 
 
 @qml.qnode(dev, interface="torch", diff_method="adjoint")
 def q_circuit(inputs, weights):
-    # Amplitude Encoding: Encodes 2^n features into n qubits
-    # Requires inputs to be normalized (norm = 1)
-    qml.AmplitudeEmbedding(inputs, wires=range(n_qubits), normalize=True)
+    # Encoding: Amplitude Embedding
+    # We set normalize=False because we handle it manually in the forward pass
+    qml.AmplitudeEmbedding(inputs, wires=range(n_qubits), normalize=False)
 
     # Variational layers
     qml.BasicEntanglerLayers(weights, wires=range(n_qubits))
@@ -24,23 +24,27 @@ class QuantumClassifier(nn.Module):
         super().__init__()
 
         # 1. Classical Projection: 312 -> 256 (2^8)
-        # We must match the dimension for Amplitude Encoding
         self.pre_net = nn.Linear(tinybert_dim, 2**n_qubits)
 
         # 2. Quantum Layer
-        # Increased depth to 4 layers for better expressivity
         weight_shapes = {"weights": (4, n_qubits)}
         self.q_layer = qml.qnn.TorchLayer(q_circuit, weight_shapes)
 
-        # 3. Post-processing: 8 -> Class labels
+        # 3. Post-processing
         self.post_net = nn.Linear(n_qubits, n_classes)
 
     def forward(self, x):
-        # Project down to 256 and apply Tanh to bound values before normalization
-        x = torch.tanh(self.pre_net(x))
+        # 1. Project 312 -> 256
+        x = self.pre_net(x)
 
-        # Pass through quantum circuit
+        # 2. Manual Normalization (Robust)
+        # We must normalize the vector to length 1 for Amplitude Embedding.
+        # We add a small epsilon (1e-8) to prevent division by zero if the vector is all zeros.
+        norm = torch.norm(x, dim=1, keepdim=True)
+        x = x / (norm + 1e-8)
+
+        # 3. Quantum Pass
         x = self.q_layer(x)
 
-        # Final classification
+        # 4. Final Classification
         return self.post_net(x)
