@@ -2,15 +2,15 @@ import pennylane as qml
 import torch
 import torch.nn as nn
 
-n_qubits = 8  # 8 qubits
+n_qubits = 8
 dev = qml.device("lightning.gpu", wires=n_qubits)
 
 
 @qml.qnode(dev, interface="torch", diff_method="adjoint")
 def q_circuit(inputs, weights):
     # Encoding: Amplitude Embedding
-    # We set normalize=False because we handle it manually in the forward pass
-    qml.AmplitudeEmbedding(inputs, wires=range(n_qubits), normalize=False)
+    # We use normalize=True, so PennyLane handles the math safely
+    qml.AmplitudeEmbedding(inputs, wires=range(n_qubits), normalize=True)
 
     # Variational layers
     qml.BasicEntanglerLayers(weights, wires=range(n_qubits))
@@ -34,17 +34,11 @@ class QuantumClassifier(nn.Module):
         self.post_net = nn.Linear(n_qubits, n_classes)
 
     def forward(self, x):
-        # 1. Project 312 -> 256
         x = self.pre_net(x)
 
-        # 2. Manual Normalization (Robust)
-        # We must normalize the vector to length 1 for Amplitude Embedding.
-        # We add a small epsilon (1e-8) to prevent division by zero if the vector is all zeros.
-        norm = torch.norm(x, dim=1, keepdim=True)
-        x = x / (norm + 1e-8)
+        # SAFETY FIX: Add tiny noise to prevent exact zero vectors
+        # This ensures 'normalize=True' never encounters a 0-norm vector
+        x = x + torch.randn_like(x) * 1e-9
 
-        # 3. Quantum Pass
         x = self.q_layer(x)
-
-        # 4. Final Classification
         return self.post_net(x)
