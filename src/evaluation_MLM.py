@@ -2,6 +2,7 @@ import torch
 import math
 import json
 import os
+import sys
 from tqdm import tqdm
 from datasets import load_dataset
 from transformers import (
@@ -10,11 +11,19 @@ from transformers import (
     DataCollatorForLanguageModeling
 )
 
-# IMPORTS FROM YOUR FILES
-from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAttention
+# --- 1. PATH SETUP (CRITICAL FIX) ---
+# This tells Python to look inside 'src' for your custom files
+sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+
+# NOW we import your custom model
+try:
+    from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAttention
+except ImportError:
+    # Fallback if file is in root
+    from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAttention
 
 # ---------------------------------------------------------
-# 1. MLM Accuracy Function
+# 2. MLM Accuracy Function
 # ---------------------------------------------------------
 def compute_mlm_accuracy(logits, labels):
     predictions = torch.argmax(logits, dim=-1)
@@ -26,24 +35,24 @@ def compute_mlm_accuracy(logits, labels):
     return correct / total
 
 # ---------------------------------------------------------
-# 2. Load and evaluate a single model (INTELLIGENT LOADER)
+# 3. Load and evaluate a single model
 # ---------------------------------------------------------
 def evaluate_model(model_path, test_loader, device):
-    print(f"\n{'='*40}")
-    print(f"Evaluating: {model_path}")
-    print(f"{'='*40}")
+    print(f"\n{'='*60}")
+    print(f"🧐 EVALUATING: {model_path}")
+    print(f"{'='*60}")
 
     # --- INTELLIGENT LOADING LOGIC ---
     try:
         if "QUANTUM" in model_path:
-            print(">>> Detected QUANTUM Checkpoint. Loading Custom Class...")
+            print("   >>> ⚛️ Detected QUANTUM Checkpoint. Loading Custom Class...")
             # We must use the simulation flag for evaluation too
             model = CustomBertForMaskedLM_LastLayerAttention.from_pretrained(
                 model_path,
                 use_quantum_simulator=True 
             )
         else:
-            print(">>> Detected CLASSICAL Checkpoint (or Baseline). Loading Standard BERT...")
+            print("   >>> 🤖 Detected CLASSICAL/STANDARD Checkpoint. Loading Standard BERT...")
             model = BertForMaskedLM.from_pretrained(model_path)
     except Exception as e:
         print(f"!!! CRITICAL ERROR loading {model_path}: {e}")
@@ -54,13 +63,12 @@ def evaluate_model(model_path, test_loader, device):
 
     total_loss = 0
     total_acc = 0
-    batches = 0
+    total_batches = 0
 
-    # Use a shorter loop for debugging if needed, but here we run full test
+    # Progress bar
     loop = tqdm(test_loader, desc="Testing")
     
     for batch in loop:
-        # Move inputs to device
         batch = {k: v.to(device) for k, v in batch.items()}
 
         with torch.no_grad():
@@ -71,16 +79,15 @@ def evaluate_model(model_path, test_loader, device):
         
         total_loss += loss.item()
         total_acc += compute_mlm_accuracy(logits, batch["labels"])
-        batches += 1
+        total_batches += 1
         
         loop.set_postfix(loss=loss.item())
 
-    avg_loss = total_loss / batches
-    avg_acc = total_acc / batches
-    # Cap perplexity to avoid math errors if loss is huge
+    avg_loss = total_loss / total_batches
+    avg_acc = total_acc / total_batches
     perplexity = math.exp(min(avg_loss, 20)) 
 
-    print(f"\n>>> FINAL: Loss: {avg_loss:.4f} | Acc: {avg_acc:.4f} | PPL: {perplexity:.4f}")
+    print(f"\n>>> 🏁 FINAL RESULT: Loss: {avg_loss:.4f} | Acc: {avg_acc:.4f} | PPL: {perplexity:.4f}")
 
     return {
         "model": model_path,
@@ -90,19 +97,19 @@ def evaluate_model(model_path, test_loader, device):
     }
 
 # ---------------------------------------------------------
-# 3. Prepare Test Data
+# 4. Prepare Test Data
 # ---------------------------------------------------------
-def prepare_test_loader(tokenizer, batch_size=16): # 16 is fine for eval on GPU
+def prepare_test_loader(tokenizer, batch_size=16):
     print("\nLoading IMDb Test Split...")
     imdb = load_dataset("imdb")
     test_data = imdb["test"]
 
-    print("Tokenizing Test Data...")
+    print("Tokenizing Test Data (This might take a minute)...")
     def tokenize(batch):
         return tokenizer(
             batch["text"],
             truncation=True,
-            padding="max_length", # Consistent padding for eval
+            padding="max_length",
             max_length=512,
             return_special_tokens_mask=True
         )
@@ -110,8 +117,9 @@ def prepare_test_loader(tokenizer, batch_size=16): # 16 is fine for eval on GPU
     tokenized = test_data.map(tokenize, batched=True, num_proc=4)
     
     # Keep only torch-compatible columns
+    keep_cols = ["input_ids", "attention_mask", "labels"] # 'labels' is created by DataCollator, but we keep raw cols first
     tokenized = tokenized.remove_columns(
-        [col for col in tokenized.column_names if col not in ["input_ids", "attention_mask", "special_tokens_mask"]]
+        [col for col in tokenized.column_names if col not in ["input_ids", "attention_mask"]]
     )
 
     collator = DataCollatorForLanguageModeling(
@@ -124,12 +132,12 @@ def prepare_test_loader(tokenizer, batch_size=16): # 16 is fine for eval on GPU
     return DataLoader(tokenized, batch_size=batch_size, shuffle=False, collate_fn=collator)
 
 # ---------------------------------------------------------
-# 4. Main Runner
+# 5. Main Runner
 # ---------------------------------------------------------
 def run_evaluation():
     # Detect GPU
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
+    print(f"Using deviceghfhgfhfh: {device}")
 
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     test_loader = prepare_test_loader(tokenizer)
@@ -137,27 +145,20 @@ def run_evaluation():
     # --- GENERATE FILE LIST ---
     model_paths = []
 
-    # 1. BASELINE (Raw BERT)
-    model_paths.append("bert-base-uncased")
+    # 1. BASELINE (Standard BERT)
+    # model_paths.append("bert-base-uncased") # Uncomment if you want to test raw BERT too
 
-    # 2. CLASSICAL FINE-TUNED (Epoch 3 Only)
-    for fold in range(1, 6):
-        path = f"./CLASSICAL_BASE_fold{fold}_epoch3"
-        if os.path.exists(path):
-            model_paths.append(path)
-        else:
-            print(f"Warning: {path} not found.")
-
-    # 3. QUANTUM FINE-TUNED (Epochs 2 & 3 Only)
-    for fold in range(1, 6):
-        for epoch in [2, 3]:
-            path = f"./QUANTUM_FULL_fold{fold}_epoch{epoch}"
+    # 2. YOUR QUANTUM MODELS (The Fix is Here: 'QUANTUM_BASE')
+    for fold in range(1, 6):  # Folds 1 to 5
+        for epoch in range(1, 4): # Epochs 1 to 3
+            path = f"./QUANTUM_BASE_fold{fold}_epoch{epoch}"
+            
             if os.path.exists(path):
                 model_paths.append(path)
             else:
-                print(f"Warning: {path} not found.")
+                print(f"⚠️ Warning: Checkpoint not found: {path}")
 
-    print(f"\nFound {len(model_paths)} models to evaluate.")
+    print(f"\n✅ Found {len(model_paths)} models to evaluate.")
 
     results = []
 
@@ -167,11 +168,14 @@ def run_evaluation():
             results.append(r)
 
     # Save to JSON
-    with open("final_experiment_results.json", "w") as f:
+    output_file = "Quantum_Baseline_Evaluation.json"
+    with open(output_file, "w") as f:
         json.dump(results, f, indent=2)
 
-    print("\n=== EXPERIMENT COMPLETE ===")
-    print("Saved results to final_experiment_results.json")
+    print("\n" + "="*40)
+    print("=== 🏆 EXPERIMENT COMPLETE ===")
+    print(f"Saved results to {output_file}")
+    print("="*40)
 
 if __name__ == "__main__":
     run_evaluation()

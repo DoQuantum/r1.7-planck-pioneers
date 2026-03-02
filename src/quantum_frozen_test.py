@@ -16,8 +16,8 @@ from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAtten
 # ==============================================================================
 # CONFIGURATION
 # ==============================================================================
-N_FOLDS = 5
-START_FOLD = 1   
+N_FOLDS = 2
+START_FOLD = 2    
 EPOCHS = 3
 LEARNING_RATE = 1e-5
 BATCH_SIZE = 8  
@@ -57,7 +57,7 @@ results = []
 for fold_idx, (train_loader, val_loader) in enumerate(folds):
     fold_num = fold_idx + 1
 
-    # --- RESTART LOGIC: SKIP COMPLETED FOLDS ---
+    # --- 🛑 RESTART LOGIC: SKIP COMPLETED FOLDS ---
     if fold_num < START_FOLD:
         print(f"⏩ SKIPPING FOLD {fold_num} (Already Completed)")
         continue
@@ -70,12 +70,11 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
     print(f"Initializing Fresh Quantum Model for Fold {fold_num}...")
     model = CustomBertForMaskedLM_LastLayerAttention.from_pretrained(
         'bert-base-uncased',
-        n_qubits=4,
         use_quantum_simulator= True
     )
     model.to(device)
     
-    print("FORCE-LOADING ENTIRE TEACHER STATE (Body + Head)...")
+    print("🚑 FORCE-LOADING ENTIRE TEACHER STATE (Body + Head)...")
     from transformers import BertForMaskedLM
     
     teacher = BertForMaskedLM.from_pretrained('bert-base-uncased')
@@ -85,6 +84,16 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
     
     print(f"   - Missing Keys (Should be 0 for standard BERT parts): {len([k for k in missing_keys if 'quantum' not in k])}")
     print(f"   - Unexpected Keys (Should be all your Quantum stuff): {len(unexpected_keys)}")
+    
+    # ==========================================
+# 🥶 FREEZING EXPERIMENT
+# ==========================================
+    print("🥶 FREEZING Classical Layers... Only Quantum parameters will update!")
+    for name, param in model.named_parameters():
+        if "quantum" not in name:  # Lock everything except quantum
+            param.requires_grad = False
+# ==========================================
+
     
     optimizer = AdamW(model.parameters(), lr=LEARNING_RATE, eps=1e-6)
 
@@ -154,7 +163,7 @@ for fold_idx, (train_loader, val_loader) in enumerate(folds):
         
         print(f"   -> Val Loss: {avg_val_loss:.4f} | Perplexity: {perplexity:.4f}")
         
-        save_path = f"./QUANTUM_6THLAYER_fold{fold_num}_epoch{epoch+1}"
+        save_path = f"./QUANTUM_FROZEN_fold{fold_num}_epoch{epoch+1}"
         print(f"   Saving checkpoint to {save_path}...")
         model.save_pretrained(save_path)
 
