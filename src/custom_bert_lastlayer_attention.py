@@ -373,7 +373,7 @@ class CustomBertForMaskedLM_LastLayerAttention(BertForMaskedLM):
     def __init__(self, config, n_qubits=4, enable_quantum_features=True, use_quantum_simulator=False):
         super().__init__(config)
 
-        LAST_LAYER = config.num_hidden_layers - 1
+        LAST_LAYER = 0
 
         custom_attention = CustomLastLayerSelfAttention(
             config,
