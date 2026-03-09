@@ -98,18 +98,26 @@ class QuantumSuperpositionAttention(nn.Module):
         self.phase = nn.Parameter(torch.tensor(math.pi / 4))
         
     def forward(self, classical_attention_scores, query_quantum, key_quantum):
-        # L2 norms of quantum tensors
-        q_norm = torch.norm(query_quantum, p=2, dim=-1, keepdim=True)
-        k_norm = torch.norm(key_quantum, p=2, dim=-1, keepdim=True)
+        # ==========================================
+        # THE NAN FIX: Epsilon Injection
+        # ==========================================
+        # Instead of torch.norm (which crashes if inputs are exactly 0.0), 
+        # we manually calculate the L2 norm and add 1e-8 inside the square root.
+        
+        q_norm = torch.sqrt(torch.sum(query_quantum ** 2, dim=-1, keepdim=True) + 1e-8)
+        k_norm = torch.sqrt(torch.sum(key_quantum ** 2, dim=-1, keepdim=True) + 1e-8)
+        
         # Norm product matrix
         norm_product = torch.matmul(q_norm, k_norm.transpose(-1, -2))
+        
         # Interference matrix
         interference_matrix = 2 * norm_product * torch.cos(self.phase)
+        
         # Add interference to scores before softmax
         scores_with_interference = classical_attention_scores + interference_matrix
         quantum_probs = nn.functional.softmax(scores_with_interference / self.temperature, dim=-1)
+        
         return quantum_probs
-
 
 ##############################################
 # Quantum-Enhanced Self-Attention
@@ -186,8 +194,19 @@ class CustomLastLayerSelfAttention(BertSelfAttention):
             key_quantum = self.quantum_key_encoder(key_flat).reshape(batch_size, num_heads, seq_len, head_dim)
             
             # Replace classical dot-product entirely with quantum scores
-            attention_scores = torch.matmul(query_quantum, key_quantum.transpose(-1, -2))
-            attention_scores = attention_scores / math.sqrt(self.attention_head_size)
+            # ==========================================
+            # THE "RESIDUAL BRIDGE" FIX
+            # ==========================================
+            # 1. Classical scores (keeps pre-trained knowledge)
+            classical_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
+            classical_scores = classical_scores / math.sqrt(self.attention_head_size)
+            
+            # 2. Quantum scores
+            quantum_scores = torch.matmul(query_quantum, key_quantum.transpose(-1, -2))
+            quantum_scores = quantum_scores / math.sqrt(self.attention_head_size)
+            
+            # 3. Blend them!
+            attention_scores = classical_scores + (0.1 * quantum_scores)
         else:
             attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
             attention_scores = attention_scores / math.sqrt(self.attention_head_size)
