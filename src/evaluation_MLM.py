@@ -133,7 +133,7 @@ def prepare_test_loader(tokenizer, batch_size=8, block_size=120):
     )
 
     from torch.utils.data import DataLoader
-    return DataLoader(lm_datasets["test" if "test" in lm_datasets else "validation"], batch_size=batch_size, shuffle=False, collate_fn=collator)
+    return DataLoader(lm_datasets, batch_size=batch_size, shuffle=False, collate_fn=collator)
 
 # ---------------------------------------------------------
 # 5. Main Runner
