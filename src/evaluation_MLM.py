@@ -11,16 +11,20 @@ from transformers import (
     DataCollatorForLanguageModeling
 )
 
-# --- 1. PATH SETUP (CRITICAL FIX) ---
-# This tells Python to look inside 'src' for your custom files
+# --- 1. PATH SETUP ---
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
-# NOW we import your custom model
 try:
     from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAttention
 except ImportError:
-    # Fallback if file is in root
     from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAttention
+
+# =========================================================
+# CONFIGURATION (Match your training run)
+# =========================================================
+N_QUBITS = 4  # Change this to 6 when you evaluate your 6-qubit run!
+BATCH_SIZE = 8
+SEQUENCE_LENGTH = 120
 
 # ---------------------------------------------------------
 # 2. MLM Accuracy Function
@@ -37,22 +41,22 @@ def compute_mlm_accuracy(logits, labels):
 # ---------------------------------------------------------
 # 3. Load and evaluate a single model
 # ---------------------------------------------------------
+
 def evaluate_model(model_path, test_loader, device):
     print(f"\n{'='*60}")
     print(f"🧐 EVALUATING: {model_path}")
     print(f"{'='*60}")
 
-    # --- INTELLIGENT LOADING LOGIC ---
     try:
         if "QUANTUM" in model_path:
-            print("   >>> ⚛️ Detected QUANTUM Checkpoint. Loading Custom Class...")
-            # We must use the simulation flag for evaluation too
+            print(f"   >>> ⚛️ Detected QUANTUM Checkpoint. Loading with {N_QUBITS} qubits...")
             model = CustomBertForMaskedLM_LastLayerAttention.from_pretrained(
                 model_path,
+                n_qubits=N_QUBITS,
                 use_quantum_simulator=True 
             )
         else:
-            print("   >>> 🤖 Detected CLASSICAL/STANDARD Checkpoint. Loading Standard BERT...")
+            print("   >>> 🤖 Detected CLASSICAL Checkpoint. Loading Standard BERT...")
             model = BertForMaskedLM.from_pretrained(model_path)
     except Exception as e:
         print(f"!!! CRITICAL ERROR loading {model_path}: {e}")
@@ -65,7 +69,6 @@ def evaluate_model(model_path, test_loader, device):
     total_acc = 0
     total_batches = 0
 
-    # Progress bar
     loop = tqdm(test_loader, desc="Testing")
     
     for batch in loop:
@@ -97,30 +100,31 @@ def evaluate_model(model_path, test_loader, device):
     }
 
 # ---------------------------------------------------------
-# 4. Prepare Test Data
+# 4. Prepare WikiText Test Data (Chunked for VRAM)
 # ---------------------------------------------------------
-def prepare_test_loader(tokenizer, batch_size=16):
-    print("\nLoading IMDb Test Split...")
-    imdb = load_dataset("imdb")
-    test_data = imdb["test"]
+def prepare_test_loader(tokenizer, batch_size=8, block_size=120):
+    print("\nLoading WikiText-2 Test Split...")
+    dataset = load_dataset("wikitext", "wikitext-2-raw-v1")
+    test_data = dataset["test"]
 
-    print("Tokenizing Test Data (This might take a minute)...")
-    def tokenize(batch):
-        return tokenizer(
-            batch["text"],
-            truncation=True,
-            padding="max_length",
-            max_length=512,
-            return_special_tokens_mask=True
-        )
+    print("Tokenizing Test Data...")
+    def tokenize_function(examples):
+        return tokenizer(examples["text"], return_special_tokens_mask=True)
 
-    tokenized = test_data.map(tokenize, batched=True, num_proc=4)
-    
-    # Keep only torch-compatible columns
-    keep_cols = ["input_ids", "attention_mask", "labels"] # 'labels' is created by DataCollator, but we keep raw cols first
-    tokenized = tokenized.remove_columns(
-        [col for col in tokenized.column_names if col not in ["input_ids", "attention_mask"]]
-    )
+    tokenized_datasets = test_data.map(tokenize_function, batched=True, num_proc=4, remove_columns=["text"])
+
+    print(f"Chunking Test Data into blocks of {block_size} tokens...")
+    def group_texts(examples):
+        concatenated_examples = {k: sum(examples[k], []) for k in examples.keys()}
+        total_length = len(concatenated_examples[list(examples.keys())[0]])
+        total_length = (total_length // block_size) * block_size
+        result = {
+            k: [t[i : i + block_size] for i in range(0, total_length, block_size)]
+            for k, t in concatenated_examples.items()
+        }
+        return result
+
+    lm_datasets = tokenized_datasets.map(group_texts, batched=True, batch_size=1000, num_proc=4)
 
     collator = DataCollatorForLanguageModeling(
         tokenizer=tokenizer,
@@ -129,34 +133,25 @@ def prepare_test_loader(tokenizer, batch_size=16):
     )
 
     from torch.utils.data import DataLoader
-    return DataLoader(tokenized, batch_size=batch_size, shuffle=False, collate_fn=collator)
+    return DataLoader(lm_datasets["test" if "test" in lm_datasets else "validation"], batch_size=batch_size, shuffle=False, collate_fn=collator)
 
 # ---------------------------------------------------------
 # 5. Main Runner
 # ---------------------------------------------------------
 def run_evaluation():
-    # Detect GPU
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using deviceghfhgfhfh: {device}")
+    print(f"Using device: {device}")
 
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-    test_loader = prepare_test_loader(tokenizer)
+    test_loader = prepare_test_loader(tokenizer, batch_size=BATCH_SIZE, block_size=SEQUENCE_LENGTH)
 
-    # --- GENERATE FILE LIST ---
     model_paths = []
 
-    # 1. BASELINE (Standard BERT)
-    # model_paths.append("bert-base-uncased") # Uncomment if you want to test raw BERT too
-
-    # 2. YOUR QUANTUM MODELS (The Fix is Here: 'QUANTUM_BASE')
-    for fold in range(1, 6):  # Folds 1 to 5
-        for epoch in range(1, 4): # Epochs 1 to 3
-            path = f"./QUANTUM_BASE_fold{fold}_epoch{epoch}"
-            
-            if os.path.exists(path):
-                model_paths.append(path)
-            else:
-                print(f"⚠️ Warning: Checkpoint not found: {path}")
+    # Search for all your saved WikiText epochs
+    for epoch in range(1, 16): 
+        path = f"./QUANTUM_WIKI_epoch{epoch}"
+        if os.path.exists(path):
+            model_paths.append(path)
 
     print(f"\n✅ Found {len(model_paths)} models to evaluate.")
 
@@ -168,7 +163,7 @@ def run_evaluation():
             results.append(r)
 
     # Save to JSON
-    output_file = "Quantum_Baseline_Evaluation.json"
+    output_file = "Quantum_WikiText_Evaluation.json"
     with open(output_file, "w") as f:
         json.dump(results, f, indent=2)
 

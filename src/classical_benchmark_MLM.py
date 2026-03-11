@@ -5,21 +5,23 @@ import os
 from tqdm import tqdm
 from datasets import load_dataset
 from torch.optim import AdamW
-from transformers import BertForMaskedLM  # <--- CHANGE 1: Import Standard BERT
+from transformers import BertForMaskedLM  # <--- STANDARD CLASSICAL BERT
 
 # IMPORTS FROM YOUR FILES
 from functions_MLM import (
     get_BertMaskedLM_BertTokenizer_MLM,
-    prepare_data_kfold_MLM
+    prepare_wikitext_MLM,
+    compute_mlm_accuracy_MLM
 )
 
 # ==============================================================================
-# CONFIGURATION (MUST MATCH QUANTUM RUN EXACTLY)
+# CONFIGURATION (Strict 1:1 Match with Quantum Run)
 # ==============================================================================
-N_FOLDS = 5
-EPOCHS = 3
-LEARNING_RATE = 1e-5  # <--- MATCHING QUANTUM
-BATCH_SIZE = 8        # <--- MATCHING QUANTUM
+EPOCHS = 15
+LEARNING_RATE = 3e-5
+BATCH_SIZE = 8  
+GRADIENT_ACCUMULATION_STEPS = 8 
+SEQUENCE_LENGTH = 120
 
 # ==============================================================================
 # 1. SETUP & DATA LOADING
@@ -27,106 +29,117 @@ BATCH_SIZE = 8        # <--- MATCHING QUANTUM
 print("Loading Tokenizer...")
 _, tokenizer = get_BertMaskedLM_BertTokenizer_MLM()
 
-print("Loading FULL IMDb Dataset...")
-dataset = load_dataset("imdb")
+print("Loading WikiText-2 Dataset...")
+dataset = load_dataset("wikitext", "wikitext-2-raw-v1")
 
-print(f"Splitting into {N_FOLDS} Folds...")
-# This ensures the exact same data split as the Quantum Run
-folds = prepare_data_kfold_MLM(
+print("Preparing Data Chunks & Train/Val split...")
+train_loader, val_loader = prepare_wikitext_MLM(
     data=dataset,
     tokenizer=tokenizer,
-    n_splits=N_FOLDS,
-    batch_size=BATCH_SIZE
+    batch_size=BATCH_SIZE,
+    block_size=SEQUENCE_LENGTH
 )
 
 # ==============================================================================
 # 2. DEVICE SETUP
 # ==============================================================================
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"DEVICE: {device}")
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+    print(f"GPU DETECTED: {torch.cuda.get_device_name(0)}")
+else:
+    device = torch.device("cpu")
+    print("NO GPU DETECTED.")
 
 # ==============================================================================
-# 3. MAIN TRAINING LOOP
+# 3. INITIALIZE STANDARD MODEL & FREEZE LAYERS
 # ==============================================================================
-results = []
+print(f"Initializing Standard Classical BERT...")
+# We load the standard model straight from HuggingFace. No custom classes.
+model = BertForMaskedLM.from_pretrained('bert-base-uncased')
+model.to(device)
 
-for fold_idx, (train_loader, val_loader) in enumerate(folds):
-    fold_num = fold_idx + 1
+# --- THE FAIRNESS PROTOCOL: FREEZE LOWER LAYERS ---
+print("Freezing Classical BERT Embeddings and Layers 0-4 for a fair comparison...")
+for param in model.bert.embeddings.parameters():
+    param.requires_grad = False
+for i in range(5): # Freeze classical layers 0 through 4
+    for param in model.bert.encoder.layer[i].parameters():
+        param.requires_grad = False
 
-    print("\n" + "#"*60)
-    print(f"STARTING CLASSICAL BASELINE FOLD {fold_num}/{N_FOLDS}")
-    print("#"*60)
+# Only parameters with requires_grad=True (Layers 5-11 and output head) will optimize
+optimizer = AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=LEARNING_RATE, eps=1e-6)
 
-    # --- A. INITIALIZE STANDARD BERT ---
-    print(f"Initializing Standard BERT for Fold {fold_num}...")
+# ==============================================================================
+# 4. MAIN TRAINING LOOP
+# ==============================================================================
+print("\n" + "#"*60)
+print(f"STARTING CLASSICAL BASELINE TRAINING: {EPOCHS} Epochs")
+print("#"*60)
+
+for epoch in range(EPOCHS):
+    print(f"\nEpoch {epoch+1}/{EPOCHS}")
     
-    # <--- CHANGE 2: Load Standard BERT (No Quantum Simulator args)
-    model = BertForMaskedLM.from_pretrained(
-        'bert-base-uncased',
-        output_attentions=True
-    )
-    model.to(device)
+    # --- TRAINING ---
+    model.train()
+    total_loss = 0
+    train_start = time.time()
     
-    optimizer = AdamW(model.parameters(), lr=LEARNING_RATE, eps=1e-6)
+    optimizer.zero_grad()
+    loop = tqdm(enumerate(train_loader), total=len(train_loader), desc=f"Training E{epoch+1}")
+    
+    for step, batch in loop:
+        batch = {k: v.to(device) for k, v in batch.items()}
+        
+        outputs = model(**batch)
+        loss = outputs.loss
+        
+        # Scale the loss for Gradient Accumulation
+        loss = loss / GRADIENT_ACCUMULATION_STEPS
+        
+        if torch.isnan(loss):
+            print(f"!!! NAN DETECTED at Epoch {epoch+1} !!! Skipping step.")
+            optimizer.zero_grad() 
+            continue
+            
+        loss.backward()
 
-    # --- B. EPOCH LOOP ---
-    for epoch in range(EPOCHS):
-        print(f"\nFold {fold_num} - Epoch {epoch+1}/{EPOCHS}")
-        
-        model.train()
-        total_loss = 0
-        train_start = time.time()
-        
-        loop = tqdm(train_loader, desc=f"Training F{fold_num}-E{epoch+1}")
-        
-        for batch in loop:
-            batch = {k: v.to(device) for k, v in batch.items()}
-            
-            optimizer.zero_grad()
-            outputs = model(**batch)
-            loss = outputs.loss
-            
-            loss.backward()
-            
-            # We keep clipping for fairness, even though classical rarely needs it
+        # Update weights only every GRADIENT_ACCUMULATION_STEPS
+        if (step + 1) % GRADIENT_ACCUMULATION_STEPS == 0 or (step + 1) == len(train_loader):
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-
             optimizer.step()
+            optimizer.zero_grad()
             
-            total_loss += loss.item()
-            loop.set_postfix(loss=loss.item())
+        # Multiply back by accumulation steps for accurate logging
+        total_loss += loss.item() * GRADIENT_ACCUMULATION_STEPS
+        loop.set_postfix(loss=(loss.item() * GRADIENT_ACCUMULATION_STEPS))
 
-        avg_train_loss = total_loss / len(train_loader)
-        train_time = (time.time() - train_start) / 60
-        print(f"   -> Avg Train Loss: {avg_train_loss:.4f} (Time: {train_time:.1f} min)")
+    avg_train_loss = total_loss / len(train_loader)
+    train_time = (time.time() - train_start) / 60
+    print(f"   -> Avg Train Loss: {avg_train_loss:.4f} (Time: {train_time:.1f} min)")
 
-        # --- VALIDATION ---
-        model.eval()
-        val_loss = 0
-        print("   -> Running Validation...")
-        with torch.no_grad():
-            for batch in val_loader:
-                batch = {k: v.to(device) for k, v in batch.items()}
-                outputs = model(**batch)
-                val_loss += outputs.loss.item()
-        
-        avg_val_loss = val_loss / len(val_loader)
-        perplexity = math.exp(min(avg_val_loss, 20))
-        
-        print(f"   -> Val Loss: {avg_val_loss:.4f} | Perplexity: {perplexity:.4f}")
-        
-        save_path = f"./CLASSICAL_BASE_fold{fold_num}_epoch{epoch+1}"
-        print(f"   Saving checkpoint to {save_path}...")
-        model.save_pretrained(save_path)
-
-    results.append({
-        "fold": fold_num,
-        "final_loss": avg_val_loss,
-        "final_perplexity": perplexity
-    })
+    # --- VALIDATION ---
+    model.eval()
+    val_loss = 0
+    total_acc = 0
+    print("   -> Running Validation...")
+    with torch.no_grad():
+        for batch in val_loader:
+            batch = {k: v.to(device) for k, v in batch.items()}
+            outputs = model(**batch)
+            val_loss += outputs.loss.item()
+            total_acc += compute_mlm_accuracy_MLM(outputs.logits, batch["labels"])
+    
+    avg_val_loss = val_loss / len(val_loader)
+    avg_val_acc = total_acc / len(val_loader)
+    perplexity = math.exp(min(avg_val_loss, 20)) 
+    
+    print(f"   -> Val Loss: {avg_val_loss:.4f} | Val Acc: {avg_val_acc:.4f} | Perplexity: {perplexity:.4f}")
+    
+    # Save to a distinctly named folder
+    save_path = f"./CLASSICAL_WIKI_epoch{epoch+1}"
+    print(f"   Saving checkpoint to {save_path}...")
+    model.save_pretrained(save_path)
 
 print("\n" + "="*50)
 print("CLASSICAL BASELINE COMPLETE")
 print("="*50)
-for r in results:
-    print(f"Fold {r['fold']}: Perplexity = {r['final_perplexity']:.4f}")
