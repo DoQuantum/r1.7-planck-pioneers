@@ -22,7 +22,7 @@ except ImportError:
 # =========================================================
 # CONFIGURATION (Match your training run)
 # =========================================================
-N_QUBITS = 4  # Change this to 6 when you evaluate your 6-qubit run!
+N_QUBITS = 6  # Change this to 6 when you evaluate your 6-qubit run!
 BATCH_SIZE = 8
 SEQUENCE_LENGTH = 120
 
@@ -149,7 +149,7 @@ def run_evaluation():
 
     # Search for all your saved WikiText epochs
     for epoch in range(1, 16): 
-        path = f"./QUANTUM_WIKI_epoch{epoch}"
+        path = f"./QUANTUM_WIKI6_epoch{epoch}"
         if os.path.exists(path):
             model_paths.append(path)
 
@@ -163,7 +163,7 @@ def run_evaluation():
             results.append(r)
 
     # Save to JSON
-    output_file = "Quantum_WikiText_Evaluation.json"
+    output_file = "Quantum_WikiText6_Evaluation.json"
     with open(output_file, "w") as f:
         json.dump(results, f, indent=2)
 
