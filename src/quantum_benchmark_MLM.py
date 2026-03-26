@@ -22,7 +22,7 @@ LEARNING_RATE = 3e-5
 BATCH_SIZE = 8  
 GRADIENT_ACCUMULATION_STEPS = 8 
 SEQUENCE_LENGTH = 120
-N_QUBITS = 3
+N_QUBITS = 6
 
 # ==============================================================================
 # 1. SETUP & DATA LOADING

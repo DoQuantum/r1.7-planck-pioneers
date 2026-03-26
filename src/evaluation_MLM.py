@@ -20,11 +20,21 @@ except ImportError:
     from custom_bert_lastlayer_attention import CustomBertForMaskedLM_LastLayerAttention
 
 # =========================================================
-# CONFIGURATION (Match your training run)
+# CONFIGURATION: THE BATCH EVALUATION QUEUE
 # =========================================================
-N_QUBITS = 6  # Change this to 6 when you evaluate your 6-qubit run!
 BATCH_SIZE = 8
 SEQUENCE_LENGTH = 120
+
+# We define exactly what folder prefix goes with what qubit count, 
+# and what to name the final output file.
+EVAL_QUEUE = [
+    {"prefix": "./QUANTUM_WIKI_3_epoch", "n_qubits": 3, "out_file": "Eval_3Q_10_percent.json"},
+    {"prefix": "./QUANTUM_WIKI_3_30_epoch", "n_qubits": 3, "out_file": "Eval_3Q_30_percent.json"},
+    {"prefix": "./QUANTUM_WIKI_3_50_epoch", "n_qubits": 3, "out_file": "Eval_3Q_50_percent.json"},
+    {"prefix": "./QUANTUM_WIKI_4_30%_epoch", "n_qubits": 4, "out_file": "Eval_4Q_30_percent.json"},
+    {"prefix": "./QUANTUM_WIKI_4_50%_epoch", "n_qubits": 4, "out_file": "Eval_4Q_50_percent.json"},
+    {"prefix": "./QUANTUM_WIKI_6_50%_epoch", "n_qubits": 6, "out_file": "Eval_6Q_50_percent.json"}
+]
 
 # ---------------------------------------------------------
 # 2. MLM Accuracy Function
@@ -41,23 +51,17 @@ def compute_mlm_accuracy(logits, labels):
 # ---------------------------------------------------------
 # 3. Load and evaluate a single model
 # ---------------------------------------------------------
-
-def evaluate_model(model_path, test_loader, device):
+def evaluate_model(model_path, test_loader, device, n_qubits):
     print(f"\n{'='*60}")
-    print(f"🧐 EVALUATING: {model_path}")
+    print(f"🧐 EVALUATING: {model_path} (Expecting {n_qubits} Qubits)")
     print(f"{'='*60}")
 
     try:
-        if "QUANTUM" in model_path:
-            print(f"   >>> ⚛️ Detected QUANTUM Checkpoint. Loading with {N_QUBITS} qubits...")
-            model = CustomBertForMaskedLM_LastLayerAttention.from_pretrained(
-                model_path,
-                n_qubits=N_QUBITS,
-                use_quantum_simulator=True 
-            )
-        else:
-            print("   >>> 🤖 Detected CLASSICAL Checkpoint. Loading Standard BERT...")
-            model = BertForMaskedLM.from_pretrained(model_path)
+        model = CustomBertForMaskedLM_LastLayerAttention.from_pretrained(
+            model_path,
+            n_qubits=n_qubits,
+            use_quantum_simulator=True 
+        )
     except Exception as e:
         print(f"!!! CRITICAL ERROR loading {model_path}: {e}")
         return None
@@ -145,32 +149,47 @@ def run_evaluation():
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     test_loader = prepare_test_loader(tokenizer, batch_size=BATCH_SIZE, block_size=SEQUENCE_LENGTH)
 
-    model_paths = []
+    # LOOP THROUGH EVERY CONFIGURATION IN THE QUEUE
+    for config in EVAL_QUEUE:
+        prefix = config["prefix"]
+        n_qubits = config["n_qubits"]
+        out_file = config["out_file"]
+        
+        print("\n" + "*"*70)
+        print(f"🚀 STARTING JOB: {prefix} ({n_qubits} Qubits)")
+        print("*"*70)
 
-    # Search for all your saved WikiText epochs
-    for epoch in range(1, 16): 
-        path = f"./QUANTUM_WIKI6_epoch{epoch}"
-        if os.path.exists(path):
-            model_paths.append(path)
+        model_paths = []
 
-    print(f"\n✅ Found {len(model_paths)} models to evaluate.")
+        # Search for all saved epochs for this specific configuration
+        for epoch in range(1, 16): 
+            path = f"{prefix}{epoch}"
+            if os.path.exists(path):
+                model_paths.append(path)
 
-    results = []
+        if len(model_paths) == 0:
+            print(f"⚠️ Warning: No checkpoints found starting with {prefix}. Skipping...")
+            continue
 
-    for mp in model_paths:
-        r = evaluate_model(mp, test_loader, device)
-        if r:
-            results.append(r)
+        print(f"✅ Found {len(model_paths)} models. Beginning evaluation...")
 
-    # Save to JSON
-    output_file = "Quantum_WikiText6_Evaluation.json"
-    with open(output_file, "w") as f:
-        json.dump(results, f, indent=2)
+        results = []
 
-    print("\n" + "="*40)
-    print("=== 🏆 EXPERIMENT COMPLETE ===")
-    print(f"Saved results to {output_file}")
-    print("="*40)
+        for mp in model_paths:
+            # Pass the correct n_qubits into the evaluation function
+            r = evaluate_model(mp, test_loader, device, n_qubits)
+            if r:
+                results.append(r)
+
+        # Save to this configuration's specific JSON file
+        with open(out_file, "w") as f:
+            json.dump(results, f, indent=2)
+
+        print(f"🎉 Finished job. Saved results to {out_file}")
+
+    print("\n" + "="*50)
+    print("=== 🏆 ALL JOBS IN QUEUE COMPLETE ===")
+    print("="*50)
 
 if __name__ == "__main__":
     run_evaluation()
