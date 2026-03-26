@@ -22,7 +22,7 @@ LEARNING_RATE = 3e-5
 BATCH_SIZE = 8  
 GRADIENT_ACCUMULATION_STEPS = 8 
 SEQUENCE_LENGTH = 120
-N_QUBITS = 6
+N_QUBITS = 4
 
 # ==============================================================================
 # 1. SETUP & DATA LOADING
@@ -144,7 +144,7 @@ for epoch in range(EPOCHS):
     
     print(f"   -> Val Loss: {avg_val_loss:.4f} | Val Acc: {avg_val_acc:.4f} | Perplexity: {perplexity:.4f}")
     
-    save_path = f"./QUANTUM_WIKI_6_50%_epoch{epoch+1}"
+    save_path = f"./QUANTUM_WIKI_4_50%_epoch{epoch+1}"
     print(f"   Saving checkpoint to {save_path}...")
     model.save_pretrained(save_path)
 
