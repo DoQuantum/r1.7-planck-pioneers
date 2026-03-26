@@ -206,7 +206,7 @@ class CustomLastLayerSelfAttention(BertSelfAttention):
             quantum_scores = quantum_scores / math.sqrt(self.attention_head_size)
             
             # 3. Blend them!
-            attention_scores = classical_scores + (0.3 * quantum_scores)
+            attention_scores = classical_scores + (0.5 * quantum_scores)
         else:
             attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
             attention_scores = attention_scores / math.sqrt(self.attention_head_size)
