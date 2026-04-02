@@ -8,8 +8,8 @@ from quantum_head import QuantumClassifier
 # --- CONFIGURATION ---
 BATCH_SIZE = 8
 LR_BERT = 2e-5
-LR_QUANTUM = 5e-4  # LOWERED from 1e-3 for stability
-MAX_GRAD_NORM = 1.0  # NEW: Clips gradients to prevent explosion
+LR_QUANTUM = 1e-4
+MAX_GRAD_NORM = 1.0
 EPOCHS = 5
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

@@ -1,37 +1,47 @@
 import torch
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
+from transformers import AutoModelForSequenceClassification
 
 from quantum_head import QuantumClassifier
 
+BATCH_SIZE = 16
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 def evaluate():
-    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Evaluating on {DEVICE}...")
 
-    # 1. Load the TEST features (you'll need to precompute these too!)
-    # Ensure you ran a 'precompute_test' function similar to your train one
-    try:
-        data = torch.load("precomputed_test.pt", weights_only=False)
-    except:
-        print("Please precompute the test set features first!")
-        return
+    # 1. Load test data
+    test_data = torch.load("test_subset.pt", weights_only=False)
+    test_loader = DataLoader(test_data, batch_size=BATCH_SIZE)
 
-    dataset = TensorDataset(data["features"], data["labels"])
-    loader = DataLoader(dataset, batch_size=16)
+    # 2. Rebuild the hybrid architecture (must match train.py)
+    model = AutoModelForSequenceClassification.from_pretrained(
+        "huawei-noah/TinyBERT_General_4L_312D", num_labels=2
+    )
+    model.classifier = QuantumClassifier(tinybert_dim=312, n_classes=2)
 
-    # 2. Load the trained weights
-    model = QuantumClassifier(tinybert_dim=312, n_classes=2).to(DEVICE)
-    model.load_state_dict(torch.load("quantum_head_weights.pth"))
+    # 3. Load trained weights
+    model.load_state_dict(torch.load("hybrid_quantum_model.pth", map_location=DEVICE))
+    model.to(DEVICE)
     model.eval()
 
     correct = 0
-    with torch.no_grad():
-        for features, labels in loader:
-            features, labels = features.to(DEVICE), labels.to(DEVICE)
-            outputs = model(features)
-            predictions = torch.argmax(outputs, dim=1)
-            correct += (predictions == labels).sum().item()
+    total = 0
 
-    print(f"Final Test Accuracy: {100 * correct / len(dataset):.2f}%")
+    with torch.no_grad():
+        for batch in test_loader:
+            input_ids = batch["input_ids"].to(DEVICE)
+            attention_mask = batch["attention_mask"].to(DEVICE)
+            labels = batch["label"].to(DEVICE)
+
+            outputs = model(input_ids, attention_mask=attention_mask)
+            preds = torch.argmax(outputs.logits, dim=1)
+            correct += (preds == labels).sum().item()
+            total += labels.size(0)
+
+    accuracy = 100 * correct / total
+    print(f"Test Accuracy: {accuracy:.2f}% ({correct}/{total})")
 
 
 if __name__ == "__main__":

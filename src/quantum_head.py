@@ -3,10 +3,10 @@ import torch
 import torch.nn as nn
 
 n_qubits = 8
-dev = qml.device("lightning.gpu", wires=n_qubits)
+dev = qml.device("default.qubit", wires=n_qubits)
 
 
-@qml.qnode(dev, interface="torch", diff_method="adjoint")
+@qml.qnode(dev, interface="torch", diff_method="backprop")
 def q_circuit(inputs, weights):
     # Encoding: Amplitude Embedding
     # We use normalize=True, so PennyLane handles the math safely
@@ -35,17 +35,16 @@ class QuantumClassifier(nn.Module):
 
     def forward(self, x):
         x = self.pre_net(x)
-
-        # KEY FIX: Tame the output with tanh to bound values to [-1, 1]
+        x = torch.clamp(x, min=-10.0, max=10.0)  # prevent extreme linear outputs
         x = torch.tanh(x)
-
-        # Replace any remaining nan/inf (belt and suspenders)
         x = torch.nan_to_num(x, nan=0.0, posinf=1.0, neginf=-1.0)
 
-        # Ensure no zero-vectors before normalization
+        # Replace any all-zero rows with small uniform vectors
         norms = x.norm(dim=-1, keepdim=True)
-        norms = torch.clamp(norms, min=1e-8)
-        x = x / norms
+        dead_rows = (norms < 1e-8).squeeze(-1)
+        if dead_rows.any():
+            x[dead_rows] = 1.0 / (2**0.5 * x.shape[-1] ** 0.5)  # small uniform vector
 
+        x = x / x.norm(dim=-1, keepdim=True)
         x = self.q_layer(x)
         return self.post_net(x)
