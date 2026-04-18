@@ -240,7 +240,7 @@ class CustomBertForMaskedLM_LastLayerAttention(BertForMaskedLM):
     def __init__(self, config, n_qubits=4, enable_quantum_features=True, use_quantum_simulator=False):
         super().__init__(config)
 
-        TARGET_LAYER = 11
+        TARGET_LAYER = 2
 
         # 1. Get the "Smart" weights FIRST
         old_weights = self.bert.encoder.layer[TARGET_LAYER].attention.self.state_dict()

@@ -144,7 +144,7 @@ for epoch in range(EPOCHS):
     
     print(f"   -> Val Loss: {avg_val_loss:.4f} | Val Acc: {avg_val_acc:.4f} | Perplexity: {perplexity:.4f}")
     
-    save_path = f"./QUANTUM_WIKI_4_11layer_epoch{epoch+1}"
+    save_path = f"./QUANTUM_WIKI_4_2layer_epoch{epoch+1}"
     print(f"   Saving checkpoint to {save_path}...")
     model.save_pretrained(save_path)
 
