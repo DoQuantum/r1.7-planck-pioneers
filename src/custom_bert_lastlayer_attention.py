@@ -206,7 +206,7 @@ class CustomLastLayerSelfAttention(BertSelfAttention):
             quantum_scores = quantum_scores / math.sqrt(self.attention_head_size)
             
             # 3. Blend them!
-            attention_scores = classical_scores + (0.75 * quantum_scores)
+            attention_scores = classical_scores + (0.5 * quantum_scores)
         else:
             attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
             attention_scores = attention_scores / math.sqrt(self.attention_head_size)
@@ -240,7 +240,7 @@ class CustomBertForMaskedLM_LastLayerAttention(BertForMaskedLM):
     def __init__(self, config, n_qubits=4, enable_quantum_features=True, use_quantum_simulator=False):
         super().__init__(config)
 
-        TARGET_LAYER = 6
+        TARGET_LAYER = 11
 
         # 1. Get the "Smart" weights FIRST
         old_weights = self.bert.encoder.layer[TARGET_LAYER].attention.self.state_dict()
