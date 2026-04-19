@@ -36,16 +36,24 @@ class QuantumFeatureMapEncoder(nn.Module):
                 for i in range(n_qubits):
                     qml.RX(inputs[:, i], wires=i)
                     qml.RZ(inputs[:, i] ** 2, wires=i)
-                # 2. Strongly-Entangling Variational Ansatz
-                # 2a. First CNOT chain
+                
+                # ==========================================
+                # THE DEEP ENTANGLEMENT FIX (3 LAYERS)
+                # ==========================================
+                # We loop the ansatz 3 times, using a different weight column for each layer
+                for depth in range(3):
+                    # a. CNOT chain (Entanglement)
+                    for i in range(n_qubits - 1):
+                        qml.CNOT(wires=[i, i + 1])
+                    
+                    # b. Parameterized RY layer (Learning)
+                    for i in range(n_qubits):
+                        qml.RY(weights[i, depth], wires=i)
+                
+                # Final CNOT chain to redistribute phase correlations before measurement
                 for i in range(n_qubits - 1):
                     qml.CNOT(wires=[i, i + 1])
-                # 2b. Parameterized RY layer
-                for i in range(n_qubits):
-                    qml.RY(weights[i, 1], wires=i)
-                # 2c. Second CNOT chain (redistribute phase correlations)
-                for i in range(n_qubits - 1):
-                    qml.CNOT(wires=[i, i + 1])
+                    
                 # 3. Measurement
                 return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
             
@@ -206,7 +214,7 @@ class CustomLastLayerSelfAttention(BertSelfAttention):
             quantum_scores = quantum_scores / math.sqrt(self.attention_head_size)
             
             # 3. Blend them!
-            attention_scores = classical_scores + (1.0 * quantum_scores)
+            attention_scores = classical_scores + (0.5 * quantum_scores)
         else:
             attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
             attention_scores = attention_scores / math.sqrt(self.attention_head_size)
