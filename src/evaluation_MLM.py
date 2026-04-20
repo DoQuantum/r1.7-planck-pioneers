@@ -25,15 +25,14 @@ except ImportError:
 BATCH_SIZE = 8
 SEQUENCE_LENGTH = 120
 
-# We define exactly what folder prefix goes with what qubit count, 
-# and what to name the final output file.
+# CAREFULLY UPDATED: Matching the exact prefixes of your new stress tests
+# All of these runs utilize the 4-Qubit architecture.
 EVAL_QUEUE = [
-    {"prefix": "./QUANTUM_WIKI_3_epoch", "n_qubits": 3, "out_file": "Eval_3Q_10_percent.json"},
-    {"prefix": "./QUANTUM_WIKI_3_30_epoch", "n_qubits": 3, "out_file": "Eval_3Q_30_percent.json"},
-    {"prefix": "./QUANTUM_WIKI_3_50_epoch", "n_qubits": 3, "out_file": "Eval_3Q_50_percent.json"},
-    {"prefix": "./QUANTUM_WIKI_4_30%_epoch", "n_qubits": 4, "out_file": "Eval_4Q_30_percent.json"},
-    {"prefix": "./QUANTUM_WIKI_4_50%_epoch", "n_qubits": 4, "out_file": "Eval_4Q_50_percent.json"},
-    {"prefix": "./QUANTUM_WIKI_6_50%_epoch", "n_qubits": 6, "out_file": "Eval_6Q_50_percent.json"}
+    {"prefix": "./QUANTUM_WIKI_4_100residlayer_epoch", "n_qubits": 4, "out_file": "Eval_4Q_100_percent.json"},
+    {"prefix": "./QUANTUM_WIKI_4_75%_epoch",           "n_qubits": 4, "out_file": "Eval_4Q_75_percent.json"},
+    {"prefix": "./QUANTUM_WIKI_4_11layer_epoch",       "n_qubits": 4, "out_file": "Eval_4Q_Layer11.json"},
+    {"prefix": "./QUANTUM_WIKI_4_2layer_epoch",        "n_qubits": 4, "out_file": "Eval_4Q_Layer2.json"},
+    {"prefix": "./QUANTUM_WIKI_4_depthtest_epoch",     "n_qubits": 4, "out_file": "Eval_4Q_DepthTest.json"}
 ]
 
 # ---------------------------------------------------------
