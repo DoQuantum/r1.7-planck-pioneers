@@ -28,11 +28,7 @@ SEQUENCE_LENGTH = 120
 # CAREFULLY UPDATED: Matching the exact prefixes of your new stress tests
 # All of these runs utilize the 4-Qubit architecture.
 EVAL_QUEUE = [
-    {"prefix": "./QUANTUM_WIKI_4_100residlayer_epoch", "n_qubits": 4, "out_file": "Eval_4Q_100_percent.json"},
-    {"prefix": "./QUANTUM_WIKI_4_75%_epoch",           "n_qubits": 4, "out_file": "Eval_4Q_75_percent.json"},
-    {"prefix": "./QUANTUM_WIKI_4_11layer_epoch",       "n_qubits": 4, "out_file": "Eval_4Q_Layer11.json"},
-    {"prefix": "./QUANTUM_WIKI_4_2layer_epoch",        "n_qubits": 4, "out_file": "Eval_4Q_Layer2.json"},
-    {"prefix": "./QUANTUM_WIKI_4_depthtest_epoch",     "n_qubits": 4, "out_file": "Eval_4Q_DepthTest.json"}
+    {"prefix": "./QUANTUM_WIKI_4_Undone_epoch", "n_qubits": 4, "out_file": "Eval_4Q_Undone.json"}
 ]
 
 # ---------------------------------------------------------
