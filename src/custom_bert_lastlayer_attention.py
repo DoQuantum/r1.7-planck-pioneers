@@ -37,20 +37,22 @@ class QuantumFeatureMapEncoder(nn.Module):
                     qml.RX(inputs[:, i], wires=i)
                     qml.RZ(inputs[:, i] ** 2, wires=i)
                 
-                # ==========================================
-                # THE DEEP ENTANGLEMENT FIX (3 LAYERS)
-                # ==========================================
-                # We loop the ansatz 3 times, using a different weight column for each layer
-                for depth in range(3):
-                    # a. CNOT chain (Entanglement)
-                    for i in range(n_qubits - 1):
-                        qml.CNOT(wires=[i, i + 1])
-                    
-                    # b. Parameterized RY layer (Learning)
-                    for i in range(n_qubits):
-                        qml.RY(weights[i, depth], wires=i)
+                # 2. Strongly-Entangling Variational Ansatz (Single Layer)
+                # 2a. First CNOT chain
+                for i in range(n_qubits - 1):
+                    qml.CNOT(wires=[i, i + 1])
                 
-                # Final CNOT chain to redistribute phase correlations before measurement
+                # 2b. Parameterized RY layer
+                for i in range(n_qubits):
+                    qml.RY(weights[i, 1] * inputs[:, i], wires=i)
+                
+                # 2c. Second CNOT chain (redistribute phase correlations)
+                for i in range(n_qubits - 1):
+                    qml.CNOT(wires=[i, i + 1])
+                
+                # 2d. SECOND ANSATZ LAYER (new)
+                for i in range(n_qubits):
+                    qml.RY(weights[i, 2] * inputs[:, i], wires=i)
                 for i in range(n_qubits - 1):
                     qml.CNOT(wires=[i, i + 1])
                     
